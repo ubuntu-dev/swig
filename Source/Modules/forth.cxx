@@ -329,7 +329,7 @@ int FORTH::top( Node *n )
 	Delete( f_init );
 	Delete( f_runtime );
 
-	Close( f_begin );
+	//Close( f_begin ); for some reason this fails to compile since swig-git
 	Delete( f_begin );
 
 	return SWIG_OK;

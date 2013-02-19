@@ -221,6 +221,12 @@
 
 /* please leave 700-719 free for D */
 
+#define WARN_FORTH_CONSTANT_TYPE_UNDEF        720
+#define WARN_FORTH_VARIABLE_ARGUMENTS         721
+#define WARN_FORTH_TYPEMAP_UNDEF              722
+
+/* please leave 720-729 free for Forth */
+
 #define WARN_RUBY_WRONG_NAME                  801
 #define WARN_RUBY_MULTIPLE_INHERITANCE        802
 
