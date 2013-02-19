@@ -1,0 +1,15 @@
+forth.swg	Typemaps and template setup
+
+/*** Code Templates ***/
+include.swg	C-Includes (always included to support main)
+header.swg	C-Header (prior to code templates, starts main)
+footer.swg	C-Footer (closes main)
+
+structs.swg	Generates Forth 200x structures
+sections.swg	Section Comments, used for pretty-printing final output
+
+/*** Forth Systems ***/
+
+gforth.swg	Templates for Gforth		( GNU )
+swiftForth.swg	Templates for SwiftForth	( Forth Inc. )
+vfx.swg		Templates for VFX		( MPE )

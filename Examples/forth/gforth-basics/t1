@@ -1,0 +1,66 @@
+STRUCT MEMBER WRAPPER:
+		struct( membervariableHandler:view ) = 'variableHandler'
+		struct( feature:except ) = '0'
+		struct( name ) = 'last_pos'
+		struct( ismember ) = '1'
+		struct( sym:symtab ) = 'Hash(0xb748d7f8) {
+  'name' : event, 
+  'parentNode' : Hash(0xb74813f8) {.....}, 
+  'csymtab' : Hash(0xb748d818) {.....}, 
+  'nodeType' : symboltable, 
+  'symtab' : Hash(0xb748d7e8) {.....}, 
+}'
+		struct( nodeType ) = 'cdecl'
+		struct( view ) = 'membervariableHandler'
+  'kind' : public, 
+  'parentNode' : Hash(0xb748d798) {...........................}, 
+  'nodeType' : access, 
+}'
+		struct( kind ) = 'variable'
+		struct( variableHandler:feature:immutable ) = ''
+		struct( sym:name ) = 'event_last_pos_get'
+		struct( membervariableHandler:sym:name ) = 'last_pos'
+		struct( membervariableHandler:type ) = 'p.struct position'
+		struct( membervariableHandler:parms ) = ''
+		struct( parentNode ) = 'Hash(0xb748d798) {
+  'classtype' : struct event, 
+  'name' : event, 
+  'sym:symtab' : Hash(0xb74813f8) {.....}, 
+  'symtab' : Hash(0xb748d7f8) {.....}, 
+  'nodeType' : class, 
+  'allows_typedef' : 1, 
+  'typepass:visit' : 1, 
+  'allocate:visit' : 1, 
+  'kind' : struct, 
+  'sym:name' : event, 
+  'view' : classDeclaration, 
+  'lastChild' : Hash(0xb7490e78) {.........}, 
+  'firstChild' : Hash(0xb748d898) {.................}, 
+  'allocate:default_constructor' : 1, 
+  'allocate:default_destructor' : 1, 
+  'allocate:copy_constructor' : 1, 
+  'has_default_constructor' : 1, 
+  'has_destructor' : 1, 
+  'allocate:destructor' : 1, 
+  'parentNode' : Hash(0xb748d338) {......}, 
+  'classDeclaration:name' : event, 
+  'classtypeobj' : struct event, 
+  'module' : Hash(0xb748d298) {....}, 
+  'sym:overname' : __SWIG_0, 
+  'typescope' : Hash(0xb748df68) {.....}, 
+}'
+		struct( access ) = 'public'
+		struct( parms ) = 'Hash(0xb7491518) {
+  'name' : self, 
+  'type' : p.struct event, 
+  'self' : 1, 
+  'hidden' : 1, 
+  'nodeType' : parm, 
+}'
+		struct( wrap:action ) = 'result = (struct position *) ((arg1)->last_pos);'
+		struct( type ) = 'p.struct position'
+		struct( memberset ) = '1'
+		struct( sym:overname ) = '__SWIG_0'
+		struct( memberget ) = '1'
+		struct( membervariableHandler:name ) = 'last_pos'
+

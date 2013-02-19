@@ -1,0 +1,3 @@
+cc -o glext.fsx glext-fsi.c
+./glext.fsx -gforth > glext.fs
+rm glext.fsx
