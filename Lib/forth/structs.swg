@@ -29,7 +29,7 @@
 #define SWIG_FORTH_STRUCT_COMMENT               "%{c-name}\\n"
 
 #define SWIG_FORTH_STRUCT_BEGIN	        	"\"begin-structure %{forth-name}\\n\""
-#define SWIG_FORTH_STRUCT_END	        	"\"drop %d end-structure\\n\", sizeof( %{c-name} )"
+#define SWIG_FORTH_STRUCT_END	        	"\"drop %d end-structure\\n\", sizeof( %{c-struct-name} )"
 
-#define SWIG_FORTH_STRUCT_FIELD                 "\"%{forth-name}\", offsetof( struct %{c-struct-name}, %{c-field-name} ), sizeof( %{c-type} )"
+#define SWIG_FORTH_STRUCT_FIELD                 "\"%{forth-name}\", offsetof( %{c-struct-name}, %{c-field-name} ), sizeof( %{c-type} )"
 

@@ -354,6 +354,10 @@ int FORTH::constructorDeclaration( Node *n )
 	String *name = Getattr( n, "sym:name" );
 	Append( m_structs, name );
 
+        /* get correct class-name */
+        Node *classNode = parentNode( n );
+	String *cStructName = Getattr( classNode, "classtype" );
+
 	/* starter-comment & begin */
 	String *comment = templateInstace( "STRUCT_COMMENT" );
 	Replace( comment, "%{c-name}", name, DOH_REPLACE_ANY );
@@ -384,6 +388,7 @@ int FORTH::constructorDeclaration( Node *n )
 	String *end = templateInstace( "STRUCT_END" );
 	String *cName = NewStringf( "struct %s", name );
 	Replace( end, "%{c-name}", cName, DOH_REPLACE_ANY );
+	Replace( end, "%{c-struct-name}", cStructName, DOH_REPLACE_ANY );
 	Replace( end, "%{forth-name}", name, DOH_REPLACE_ANY );
 	Printf( f_structs, "\tprintf( %s );\n", end );
 
@@ -494,11 +499,16 @@ int FORTH::structMemberWrapper( Node *node )
 	if( memberget == NULL || Strcmp( memberget, "1" ) != 0 )
 		return SWIG_OK;
 
-	String	*structName = Getattr( parentNode( node ), "name" ),
+        Node *classNode = parentNode( node );
+
+	String	*structName = Getattr( classNode, "name" ),
+                *cStructName = Getattr( classNode, "classtype" ),
 		*fieldName = Getattr( node, "membervariableHandler:sym:name" ),
 		*cName = NewStringf( "struct %s.%s", structName, fieldName ),
 		*cType = NewString( "" ),
 		*forthName = NewStringf( "%s-%s", structName, fieldName );
+
+        //Printf( f_structs, "MW-NAME: %s", parentNode( (  node ) ) );
 
 	/* pretty-print type */
 	SwigType *type = Getattr( node, "membervariableHandler:type" );
@@ -522,7 +532,7 @@ int FORTH::structMemberWrapper( Node *node )
 	Replace( fieldTemplate, "%{c-name}", cName, DOH_REPLACE_ANY );
 	Replace( fieldTemplate, "%{c-type}", cType, DOH_REPLACE_ANY );
 	Replace( fieldTemplate, "%{forth-name}", forthName, DOH_REPLACE_ANY );
-	Replace( fieldTemplate, "%{c-struct-name}", structName, DOH_REPLACE_ANY );
+	Replace( fieldTemplate, "%{c-struct-name}", cStructName, DOH_REPLACE_ANY );
 	Replace( fieldTemplate, "%{c-field-name}", fieldName, DOH_REPLACE_ANY );
 	
 	Printf( output, "\tswigStructField( %s );\n", fieldTemplate );
