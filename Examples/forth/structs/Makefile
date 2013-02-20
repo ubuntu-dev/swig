@@ -3,7 +3,7 @@ SWIG       = $(TOP)/../preinst-swig
 OUTPUT     = structs
 INTERFACE  = $(OUTPUT).i
 
-.PHONY: $(OUTPUT), clean
+.PHONY: $(OUTPUT) clean
 
 $(OUTPUT):
 	$(SWIG) -forth -o $(OUTPUT).c $(INTERFACE)

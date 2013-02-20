@@ -224,6 +224,7 @@
 #define WARN_FORTH_CONSTANT_TYPE_UNDEF        720
 #define WARN_FORTH_VARIABLE_ARGUMENTS         721
 #define WARN_FORTH_TYPEMAP_UNDEF              722
+#define WARN_FORTH_TEMPLATE_UNDEF             723
 
 /* please leave 720-729 free for Forth */
 

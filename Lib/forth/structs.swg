@@ -26,10 +26,13 @@
 
  *****************************************************************************/
 
-#define SWIG_FORTH_STRUCT_COMMENT               "%{c-name}\\n"
+/* replacement for spaces in struct-type-names, e.g. 'struct position' */
+#define SWIG_FORTH_STRUCT_SEPARATOR		"-"
+#define SWIG_FORTH_STRUCT_PARAMETER		"a{*(%{type}*)}"
+#define SWIG_FORTH_STRUCT_COMMENT               "%{c-struct-name}\\n"
 
-#define SWIG_FORTH_STRUCT_BEGIN	        	"\"begin-structure %{forth-name}\\n\""
-#define SWIG_FORTH_STRUCT_END	        	"\"drop %d end-structure\\n\", sizeof( %{c-struct-name} )"
+#define SWIG_FORTH_STRUCT_BEGIN	        	"\tprintf( \"begin-structure %{forth-name}\\n\" );\n"
+#define SWIG_FORTH_STRUCT_END	        	"\tprintf( \"drop %d end-structure\\n\", sizeof( %{c-struct-name} ) );\n"
 
 #define SWIG_FORTH_STRUCT_FIELD                 "\"%{forth-name}\", offsetof( %{c-struct-name}, %{c-field-name} ), sizeof( %{c-type} )"
 

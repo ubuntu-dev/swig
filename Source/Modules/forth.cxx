@@ -76,18 +76,19 @@ class FORTH : public Language
 		virtual int enumDeclaration( Node *n);
   		virtual int typedefHandler( Node *n );
 
-		/* struct-handling */
-		virtual int constructorDeclaration( Node *n );
-
 		/* shouts */
 		virtual int functionHandler( Node *node ); 
-		String *	functionWrapper( String *name, String *forthName, String *type, String *parmstr, const char *prefix, const char *functionTemplateName = "%s_FUNCTION", const char *cAction = "" );
-		void	functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction = "" );
-		/* wrappers */
+		String *functionWrapper( String *name, String *forthName, String *type, String *parmstr, const char *prefix,
+			const char *functionTemplateName = "%s_FUNCTION", const char *cAction = "" );
+		void functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType,
+			const char *templateName, const char *functionName, const char *cAction = "" );
 
+		/* wrappers */
 		virtual int constantWrapper( Node *n );
 		virtual int functionWrapper( Node *n );
 
+		/* struct-handling */
+		virtual int constructorDeclaration( Node *n );
 		int	structMemberWrapper( Node *n );
 
 		void	registerCallback( Node *n, String *name, SwigType *type, SwigType *returnType );
@@ -102,14 +103,16 @@ class FORTH : public Language
 		/* always_resolve ignores fullCrossPlatform-Mode (used for checking the type of constants) */
 		String	*typeLookup( Node *node, bool always_resolve = false );
 		String	*forthifyName( String *name );
+
+		String	*templateString( const char *name );
 		String	*templateInstace( const char *name );
+		void	replace( String *text, Hash *hash );
+		String	*templateReplace( const char *name, Hash *hash );
 
 		String	*toggleCase( String *name );
 		void	uppercase( String *name );
 
 		bool	itemExists( DOH *node, String *name );
-	
-		unsigned long base2dec( String *number, unsigned long base );
 
 	/* members */
 	protected:
@@ -347,54 +350,6 @@ void FORTH::dumpSection( const char* sectionName, File *sectionFile )
 
 /* special handlers */
 
-/* find structs */
-int FORTH::constructorDeclaration( Node *n )
-{
-	/* append to list of known structs */
-	String *name = Getattr( n, "sym:name" );
-	Append( m_structs, name );
-
-        /* get correct class-name */
-        Node *classNode = parentNode( n );
-	String *cStructName = Getattr( classNode, "classtype" );
-
-	/* starter-comment & begin */
-	String *comment = templateInstace( "STRUCT_COMMENT" );
-	Replace( comment, "%{c-name}", name, DOH_REPLACE_ANY );
-	Replace( comment, "%{forth-name}", name, DOH_REPLACE_ANY );
-	printComment( f_structs, comment );
-
-	String *begin = templateInstace( "STRUCT_BEGIN" );
-	Replace( begin, "%{c-name}", name, DOH_REPLACE_ANY );
-	Replace( begin, "%{forth-name}", name, DOH_REPLACE_ANY );
-	Printf( f_structs, "\tprintf( %s );\n", begin );
-
-	/* fields */
-	Hash *fieldHash = (Hash*) Getattr( m_structFields, name );
-	if( fieldHash != NULL )
-	{
-		List *fieldKeys = Keys( fieldHash );
-		for( int i = 0; i < Len( fieldKeys ); i++ )
-		{
-			String	*fieldName = (String*) Getitem( fieldKeys, i ),
-				*fieldOutput = (String*) Getattr( fieldHash, fieldName );
-
-			Printf( f_structs, "%s", fieldOutput );
-		}
-	}
-
-
-	/* end */
-	String *end = templateInstace( "STRUCT_END" );
-	String *cName = NewStringf( "struct %s", name );
-	Replace( end, "%{c-name}", cName, DOH_REPLACE_ANY );
-	Replace( end, "%{c-struct-name}", cStructName, DOH_REPLACE_ANY );
-	Replace( end, "%{forth-name}", name, DOH_REPLACE_ANY );
-	Printf( f_structs, "\tprintf( %s );\n", end );
-
-	return Language::constructorDeclaration( n );
-}
-
 /* only for visualisation */
 int FORTH::typedefHandler( Node *n )
 {
@@ -420,7 +375,7 @@ int FORTH::functionHandler( Node *node )
 
 
 
-/* wrappers */
+/* * *   constants & enums   * * */
 
 int FORTH::constantWrapper(Node *n)
 {
@@ -485,15 +440,62 @@ int FORTH::enumDeclaration( Node *node )
 	return SWIG_NOWRAP;
 }
 
+
+/* * *   structs   * * */
+
+int FORTH::constructorDeclaration( Node *n )
+{
+	/* append to list of known structs */
+	String *name = Getattr( n, "sym:name" );
+
+        /* get correct class-name */
+        Node *classNode = parentNode( n );
+	String *cStructName = Getattr( classNode, "classtype" );
+	String *forthName = NewString( cStructName );
+	Replace( forthName, " ", templateString( "STRUCT_SEPARATOR" ), DOH_REPLACE_ANY );
+
+	Append( m_structs, cStructName );
+
+	/* starter-comment & begin */
+	Hash *replacers = NewHash();
+	Setattr( replacers, "%{c-name}", name );
+	Setattr( replacers, "%{c-struct-name}", cStructName );
+	Setattr( replacers, "%{forth-name}", forthName );
+
+	String *comment = templateReplace( "STRUCT_COMMENT", replacers );
+	printComment( f_structs, comment );
+
+	String *begin = templateReplace( "STRUCT_BEGIN", replacers );
+	Printf( f_structs, "%s", begin );
+
+	/* fields */
+	Hash *fieldHash = (Hash*) Getattr( m_structFields, name );
+	if( fieldHash != NULL )
+	{
+		List *fieldKeys = Keys( fieldHash );
+		for( int i = 0; i < Len( fieldKeys ); i++ )
+		{
+			String	*fieldName = (String*) Getitem( fieldKeys, i ),
+				*fieldOutput = (String*) Getattr( fieldHash, fieldName );
+
+			Printf( f_structs, "%s", fieldOutput );
+		}
+	}
+
+
+	/* end */
+	String *end = templateReplace( "STRUCT_END", replacers );
+	Printf( f_structs, "%s", end );
+
+	Delete( replacers );
+	Delete( begin );
+	Delete( end );
+
+	return Language::constructorDeclaration( n );
+}
+
 int FORTH::structMemberWrapper( Node *node )
 {
-#if 0
-	List *keys = Keys( node );
-	Printf( f_structs, "\n\nSTRUCT MEMBER WRAPPER:\n" );
-	for( int i = 0; i < Len( keys ); i++ )
-		Printf( f_structs, "\t\tstruct( %s ) = '%s'\n", (String *)Getitem( keys, i ), (String *)Getattr( node, (String*) Getitem( keys, i ) ) );
-#endif
-
 	/* only use member-gets, as we only need to create a +field offset/size pair */
 	String *memberget = Getattr( node, "memberget" );
 	if( memberget == NULL || Strcmp( memberget, "1" ) != 0 )
@@ -506,9 +508,9 @@ int FORTH::structMemberWrapper( Node *node )
 		*fieldName = Getattr( node, "membervariableHandler:sym:name" ),
 		*cName = NewStringf( "struct %s.%s", structName, fieldName ),
 		*cType = NewString( "" ),
-		*forthName = NewStringf( "%s-%s", structName, fieldName );
+		*forthName = NewStringf( "%s %s", cStructName, fieldName );
 
-        //Printf( f_structs, "MW-NAME: %s", parentNode( (  node ) ) );
+	Replace( forthName, " ", templateString( "STRUCT_SEPARATOR" ), DOH_REPLACE_ANY );
 
 	/* pretty-print type */
 	SwigType *type = Getattr( node, "membervariableHandler:type" );
@@ -543,6 +545,9 @@ int FORTH::structMemberWrapper( Node *node )
 
 	return SWIG_OK;
 }
+
+
+/* * *   callbacks   * * */
 
 void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType *returnType )
 {
@@ -584,15 +589,18 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 	Delete( cType );
 }
 
+
+/* * *   functions   * * */
+
 /* wraps all available systems */
 void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction)
 {
 	String		*parmstr= ParmList_str_forthargs( parms, "type" ),
 			*parmSpacer = NewString(ParmList_len( parms ) ? " " : ""),
-			*templateString = NewStringf( "%%s_%s", templateName ),
-			*gforth =	functionWrapper( name, forthName, returnType, parmstr, "GFORTH", Char(templateString), cAction ),
-			*swiftForth =	functionWrapper( name, forthName, returnType, parmstr, "SWIFTFORTH", Char(templateString), cAction ),
-			*vfx =		functionWrapper( name, forthName, returnType, parmstr, "VFX", Char(templateString), cAction );
+			*wrapperString = NewStringf( "%%s_%s", templateName ),
+			*gforth =	functionWrapper( name, forthName, returnType, parmstr, "GFORTH", Char(wrapperString), cAction ),
+			*swiftForth =	functionWrapper( name, forthName, returnType, parmstr, "SWIFTFORTH", Char(wrapperString), cAction ),
+			*vfx =		functionWrapper( name, forthName, returnType, parmstr, "VFX", Char(wrapperString), cAction );
 
 
 	String	*comment = templateInstace( "STACKEFFECT_COMMENT" );
@@ -602,7 +610,7 @@ void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmLi
 
 	Printf( file, "\t%s( \"%s\", \"%s\", \"%s\", \"%s\" );\n", functionName, gforth, swiftForth, vfx, comment  );
 
-	Delete( templateString );
+	Delete( wrapperString );
 	Delete( gforth );
 	Delete( swiftForth );
 	Delete( vfx );
@@ -667,7 +675,9 @@ int FORTH::functionWrapper(Node *node)
 	return SWIG_OK;
 }
 
-/* Helper Methods */
+
+/* * *   helpers   * * */
+
 void	FORTH::printNewline( File *file )
 {
 	Printf( file, "\n\tswigNewline();\n" );
@@ -720,7 +730,7 @@ String *FORTH::ParmList_str_forthargs( ParmList *node, const char *attr_name )
 		node = nextSibling( node );
 		if( node )
 			Append( out, " " );
-		Delete( type );	/* shouln't that string only be deleted if SwigType_str was used? */
+		Delete( type );	/* shouldn't that string only be deleted if SwigType_str was used? */
 	}
 
 	return out;
@@ -740,7 +750,8 @@ String *FORTH::typeLookup( Node *node, bool always_resolve )
 	if( !foundType && itemExists( m_structs, cTypeName ) )
 	{
 		/* found, current type is struct */
-		typeName = NewString( "struct" );
+		typeName = templateInstace( "STRUCT_PARAMETER" );
+		Replace( typeName, "%{type}", cTypeName, DOH_REPLACE_ANY );
 		foundType = true;
 	}
 
@@ -854,10 +865,27 @@ String *FORTH::forthifyName( String *name )
 	return forthName;
 }
 
+
+/* * *   templates * * */
+
+String	*FORTH::templateString( const char *name )
+{
+	String *original = (String*) Getattr( m_templates, name );
+
+	/* check if template exists */
+	if( original == NULL )
+	{
+		Swig_warning( WARN_FORTH_TEMPLATE_UNDEF, input_file, line_number, "Template \"%s\" not found\n", name );
+		return NewStringf( "{UNKNOWN_TEMPLATE '%s'}", name );
+	}
+	else
+		return original;
+}
+
 String	*FORTH::templateInstace( const char *name )
 {
 	/* load template and transform some \-s */
-	String *instance = NewString( (String*) Getattr( m_templates, name ) );
+	String *instance = NewString( templateString( name ) );
 
 	/* preserve intended backspace */
 	Replace( instance, "\\\\", "\\-", DOH_REPLACE_ANY );
@@ -871,18 +899,24 @@ String	*FORTH::templateInstace( const char *name )
 	return instance;
 }
 
-unsigned long FORTH::base2dec( String *number, unsigned long base )
+void	FORTH::replace( String *text, Hash *hash )
 {
-	unsigned long result = 0, multiplier = 1;
-	const char *numberData = (const char *) Data( number );
-
-	for( int i = Len( number ) - 1; i >= 0; i-- )
+	List *needles = Keys( hash );
+	for( int i = 0; i < Len( hash ); i++ )
 	{
-		result += multiplier * (unsigned long)( numberData[ i ] - '0' );
-		multiplier *= base;
-	}
+		String	*needle = (String*) Getitem( needles, i ),
+			*replacement = (String*) Getattr( hash, needle );
 
-	return result;
+		Replace( text, needle, replacement, DOH_REPLACE_ANY );
+	}
+}
+
+
+String	*FORTH::templateReplace( const char *name, Hash *hash )
+{
+	String *instance = templateInstace( name );
+	replace( instance, hash );
+	return instance;
 }
 
 /* c-level access to class */

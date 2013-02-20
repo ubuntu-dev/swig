@@ -55,6 +55,7 @@
 %typemap(forth) enum SWIGTYPE						"n"
 
 /* common templates */
+%include "generic.swg"
 %include "sections.swg"
 %include "structs.swg"
 
