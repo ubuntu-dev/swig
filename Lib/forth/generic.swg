@@ -1,13 +1,13 @@
 /*****************************************************************************
 
-	gforth.swg
+	structs.swg
 
-	Function:	Forth extension module for swig
+	Function:	templates for struct handling according to Forth200x
 
-	Started:	19.10.2010
+	Started:	20.02.2013
 	Finished:	x
 
-	Copyright 2010 by Gerald Wodni
+	Copyright 2013 by Gerald Wodni
 
 	This file is part of Forth-Swig-Extension.
 
@@ -26,12 +26,5 @@
 
  *****************************************************************************/
 
-
-#define SWIG_FORTH_GFORTH_PARAMETER		"%{type}"
-#define SWIG_FORTH_GFORTH_FUNCTION		"c-function %{c-name} %{forth-name} %{inputs} -- %{output}"
-#define SWIG_FORTH_GFORTH_COMMENT		"\\ %{value}"
-#define SWIG_FORTH_GFORTH_OUTPUT		"%{value}"
-
-#define SWIG_FORTH_GFORTH_FUNCTION_POINTER	"c-funptr %{forth-name} {%{c-action}} %{inputs} -- %{output}"
-#define SWIG_FORTH_GFORTH_CALLBACK		"c-callback %{forth-name} %{inputs} -- %{output}"
-
+/* disable common stackeffect comment */
+#define SWIG_FORTH_STACKEFFECT_COMMENT		""

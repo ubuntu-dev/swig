@@ -268,10 +268,13 @@ int FORTH::top( Node *n )
 	m_structFields = NewHash();
 	m_structs = NewList();
 
+	String *header = NewStringEmpty();
+
 	/* Register file targets with the SWIG file handler */
 	Swig_register_filebyname( "begin", f_begin );
-	Swig_register_filebyname( "header", f_header );
-	Swig_register_filebyname( "footer", f_footer );
+	Swig_register_filebyname( "cheader", f_header );
+	Swig_register_filebyname( "cfooter", f_footer );
+	Swig_register_filebyname( "header", header );
 	Swig_register_filebyname( "include", f_include );
 	Swig_register_filebyname( "struct", f_structs );
 	Swig_register_filebyname( "functionPointers", f_functionPointers );
@@ -289,6 +292,9 @@ int FORTH::top( Node *n )
 
 	/* user-includes */
 	Dump( f_include, f_begin );
+
+	/* swig-headers */
+	Dump( header, f_begin );
 
 	/* Output module initialization code */
 	Dump( f_header, f_begin );
@@ -331,6 +337,7 @@ int FORTH::top( Node *n )
 	Delete( f_wrappers );
 	Delete( f_init );
 	Delete( f_runtime );
+	Delete( header );
 
 	//Close( f_begin ); for some reason this fails to compile since swig-git
 	Delete( f_begin );
@@ -575,7 +582,7 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 
 	/* function pointer */
 	String *action = NewString( Getattr( node, "wrap:action" ) );
-	Replace( action, " ", "", DOH_REPLACE_ANY );
+	//Replace( action, " ", "", DOH_REPLACE_ANY );
 	Replace( action, "result=", "", DOH_REPLACE_FIRST );
 
 	parms  = Getattr(node,"membervariableHandler:parms");

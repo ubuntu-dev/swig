@@ -2,7 +2,7 @@ TOP        = ../..
 SWIG       = $(TOP)/../preinst-swig
 OUTPUT     = xlib
 INTERFACE  = xlib.i
-OPTIONS	   = -forth -no-sectioncomments -stackcomments -includeall -I/usr/include -I/usr/include/linux -I/usr/include/x86_64-linux-gnu/
+OPTIONS	   = -forth -no-sectioncomments -stackcomments -includeall -I/usr/include -I/usr/lib/gcc/x86_64-linux-gnu/4.7/include -I/usr/include/x86_64-linux-gnu
 
 .PHONY: $(OUTPUT), clean
 

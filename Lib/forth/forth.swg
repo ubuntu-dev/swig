@@ -66,7 +66,7 @@
 
 /* file header */
 %insert("include") "include.swg"
-%insert("header") "header.swg"
+%insert("cheader") "header.swg"
 
-%insert("footer") "footer.swg"
+%insert("cfooter") "footer.swg"
 
