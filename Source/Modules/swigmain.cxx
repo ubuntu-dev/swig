@@ -52,6 +52,7 @@ extern "C" {
   Language *swig_go(void);
   Language *swig_d(void);
   Language *swig_javascript(void);
+  Language *swig_forth(void);
 }
 
 struct swig_module {
@@ -71,6 +72,7 @@ static swig_module modules[] = {
   {"-cffi", swig_cffi, "CFFI"},
   {"-csharp", swig_csharp, "C#"},
   {"-d", swig_d, "D"},
+  {"-forth", swig_forth, "Forth"},
   {"-go", swig_go, "Go"},
   {"-guile", swig_guile, "Guile"},
   {"-java", swig_java, "Java"},
