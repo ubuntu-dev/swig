@@ -2584,6 +2584,12 @@ if test -z "$DDEFAULTVERSION" ; then
 fi
 AC_SUBST(SKIP_D)
 
+SKIP_FORTH=
+if test -z "$FORTH" ; then
+    SKIP_FORTH="1"
+fi
+AC_SUBST(SKIP_FORTH)
+
 #----------------------------------------------------------------
 # Additional language dependencies
 #----------------------------------------------------------------
@@ -2652,6 +2658,7 @@ AC_CONFIG_FILES([
     Examples/test-suite/chicken/Makefile
     Examples/test-suite/csharp/Makefile
     Examples/test-suite/d/Makefile
+    Examples/test-suite/forth/Makefile
     Examples/test-suite/guile/Makefile
     Examples/test-suite/java/Makefile
     Examples/test-suite/javascript/Makefile
@@ -2721,6 +2728,7 @@ test -n "$SKIP_CHICKEN"		|| langs="${langs}chicken "
 test -n "$SKIP_CLISP"		|| langs="${langs}clisp "
 test -n "$SKIP_CSHARP"		|| langs="${langs}csharp "
 test -n "$SKIP_D"		|| langs="${langs}d "
+test -n "$SKIP_FORTH"		|| langs="${langs}forth "
 test -n "$SKIP_GO"		|| langs="${langs}go "
 test -n "$SKIP_GUILE"		|| langs="${langs}guile "
 test -n "$SKIP_JAVA"		|| langs="${langs}java "
