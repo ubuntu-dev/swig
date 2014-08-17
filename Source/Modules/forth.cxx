@@ -100,7 +100,7 @@ class FORTH : public Language
 
 		String	*ParmList_str_forthargs( ParmList *node, const char *attr_name );
 		/* always_resolve ignores fullCrossPlatform-Mode (used for checking the type of constants) */
-		String	*typeLookup( Node *node, bool always_resolve = false );
+		String	*typeLookup( Node *node );
 		String	*forthifyName( String *name );
 		String	*templateInstace( const char *name );
 
@@ -329,7 +329,8 @@ int FORTH::top( Node *n )
 	Delete( f_init );
 	Delete( f_runtime );
 
-	Close( f_begin );
+	/* FIXME: broken since upgrade to swig3, ask newsgroup for fix */
+	//Close( f_begin );
 	Delete( f_begin );
 
 	return SWIG_OK;
@@ -421,7 +422,7 @@ int FORTH::constantWrapper(Node *n)
 {
 	String *name = Getattr( n, "sym:name" );
 	String *cTypeName = SwigType_str( Getattr( n, "type" ), 0 );
-	String *type = typeLookup( n, true );
+	String *type = typeLookup( n );
 	String *value = Getattr( n, "value" );
 
 	/* check constant-type */
@@ -716,7 +717,7 @@ String *FORTH::ParmList_str_forthargs( ParmList *node, const char *attr_name )
 	return out;
 }
 
-String *FORTH::typeLookup( Node *node, bool always_resolve )
+String *FORTH::typeLookup( Node *node )
 {
 	String		*typeName;
 	String		*resultType = NewString("");
