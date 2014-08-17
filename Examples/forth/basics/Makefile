@@ -26,3 +26,4 @@ clean:
 	rm -f $(OUTPUT).fs
 	rm -f $(OUTPUT).fso
 	rm -f $(OUTPUT).fsx
+	rm -f $(OUTPUT)-fsi.c

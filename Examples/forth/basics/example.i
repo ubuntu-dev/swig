@@ -1,5 +1,5 @@
 %module example
-%insert("fsiinclude")
+%insert("include")
 %{
 #include "info.h"
 %}

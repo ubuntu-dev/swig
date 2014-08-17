@@ -42,7 +42,7 @@
 static const char *usage = (char *) "\
 Forth Options (available with -forth)\n\
      -notrans-constants    - will not transform the constants ( \"#define FOO_bar 123\" becomes \"FOO_bar constant foo_BAR\" )\n\
-     -full-crossplatform   - instead of resolving all types (standard setting), all types are left c-typed\n\
+     -use-structs   - enables structs (expterimental, mostly broken)\n\
                              on the target platform call 'gcc -E' (headers required)\n\
      -defaulttype <type>   - specifies the forth-type to be used when no typemap was found (default is " FORTH_DEFAULT_TYPE " )\n\
      -forthifyfunctions    - change c-naming-convention into forth-names e.g. getAllStuff becomes get-all-stuff\n\
@@ -99,7 +99,6 @@ class FORTH : public Language
 		void	printComment( File *file, const String *comment ); 
 
 		String	*ParmList_str_forthargs( ParmList *node, const char *attr_name );
-		/* always_resolve ignores fullCrossPlatform-Mode (used for checking the type of constants) */
 		String	*typeLookup( Node *node );
 		String	*forthifyName( String *name );
 		String	*templateInstace( const char *name );
@@ -133,7 +132,7 @@ class FORTH : public Language
 		bool	useStackComments;
 		bool	useEnumComments;
 		bool	forthifyfunctions;
-		bool	fullCrossPlatform;
+		bool	useStructs;
 		bool	noConstantsTransformation;
 		bool	wrapFunction;			/* set by functionHandler to prevent swig from generating _set and _get fopr structs and alike */
 		bool	containsVariableArguments;	/* set by typeLookup to handle special output in function wrapper */
@@ -150,7 +149,7 @@ void FORTH::main( int argc, char **argv )
 	useStackComments = false;
 	useEnumComments = false;
 	forthifyfunctions = false;
-	fullCrossPlatform = false;
+	useStructs = false;
 	noConstantsTransformation = false;
 	defaultType = NULL;
 	containsVariableArguments = false;
@@ -167,9 +166,9 @@ void FORTH::main( int argc, char **argv )
 				Preprocessor_define( "SWIGFORTH_FSI 1 ", 0);
 				Swig_mark_arg(i);
 			}
-			else if( strcmp( argv[i], "-fullcrossplatform" ) == 0)
+			else if( strcmp( argv[i], "-use-structs" ) == 0)
 			{
-				fullCrossPlatform = true;
+				useStructs = true;
 				Swig_mark_arg(i);
 			}
 			else if( strcmp( argv[i], "-notrans-constants" ) == 0)
@@ -285,6 +284,9 @@ int FORTH::top( Node *n )
 	/* Write all to the file */
 
 	/* user-includes */
+	//Printf( stdout, "READYYYYY-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*\n" );
+	//Dump( stdout, f_intConstants );
+	//Printf( stdout, "DONE-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*\n" );
 	Dump( f_include, f_begin );
 
 	/* Output module initialization code */
@@ -302,7 +304,8 @@ int FORTH::top( Node *n )
 	dumpSection( "ENUMS", f_enums );
 
 	/* structs */
-	dumpSection( "STRUCTS", f_structs );
+	if( useStructs )
+		dumpSection( "STRUCTS", f_structs );
 
 	/* functionPointers */
 	dumpSection( "FUNCTION_POINTERS", f_functionPointers );
@@ -426,7 +429,7 @@ int FORTH::constantWrapper(Node *n)
 	String *value = Getattr( n, "value" );
 
 	/* check constant-type */
-	if( Strncmp( cTypeName, "char *", 6) == 0 )
+	if( Strncmp( cTypeName, "char const *", 12) == 0 )
 	{
 		/* save template in hashtable */
 		if( Strncmp( name, "SWIG_FORTH_", 11 ) == 0 )
