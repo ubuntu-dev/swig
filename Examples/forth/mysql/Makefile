@@ -2,7 +2,7 @@ TOP        = ../..
 SWIG       = $(TOP)/../preinst-swig
 OUTPUT     = mysql
 INTERFACE  = mysql.i
-OPTIONS    = -forth -no-sectioncomments -stackcomments -includeall -I/usr/include/mysql -I/usr/include -I/usr/lib/gcc/x86_64-linux-gnu/4.9/include/
+OPTIONS    = -forth -no-sectioncomments -stackcomments -use-structs -I/usr/include/mysql -I/usr/include -I/usr/lib/gcc/x86_64-linux-gnu/4.9/include/
 
 $(OUTPUT).fs: $(OUTPUT).fsx
 	./$(OUTPUT).fsx -gforth > $(OUTPUT).fs

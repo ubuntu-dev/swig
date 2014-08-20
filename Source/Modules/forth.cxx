@@ -355,7 +355,8 @@ void FORTH::dumpSection( const char* sectionName, File *sectionFile )
 int FORTH::constructorDeclaration( Node *n )
 {
 	/* append to list of known structs */
-	String *name = Getattr( n, "sym:name" );
+	String *name = Getattr( n, "sym:name" ),
+		*cName = Getattr( parentNode( n ), "classtype" );
 	Append( m_structs, name );
 
 	/* starter-comment & begin */
@@ -386,7 +387,6 @@ int FORTH::constructorDeclaration( Node *n )
 
 	/* end */
 	String *end = templateInstace( "STRUCT_END" );
-	String *cName = NewStringf( "struct %s", name );
 	Replace( end, "%{c-name}", cName, DOH_REPLACE_ANY );
 	Replace( end, "%{forth-name}", name, DOH_REPLACE_ANY );
 	Printf( f_structs, "\tprintf( %s );\n", end );
@@ -399,7 +399,7 @@ int FORTH::typedefHandler( Node *n )
 {
 #if FORTH_DEBUG
 	String *name = Getattr( n, "sym:name" );
-	Printf( f_wrappers, "\\ typedef %s\n", name );
+	Printf( stdout, "FORTH_DEBUG: typedef >%s<\n\t%s\n", name, n );
 #endif
 
 	return Language::typedefHandler( n );
@@ -499,6 +499,7 @@ int FORTH::structMemberWrapper( Node *node )
 		return SWIG_OK;
 
 	String	*structName = Getattr( parentNode( node ), "name" ),
+		*cStructName = Getattr( parentNode( node ), "classtype" ),
 		*fieldName = Getattr( node, "membervariableHandler:sym:name" ),
 		*cName = NewStringf( "struct %s.%s", structName, fieldName ),
 		*cType = NewString( "" ),
@@ -526,7 +527,7 @@ int FORTH::structMemberWrapper( Node *node )
 	Replace( fieldTemplate, "%{c-name}", cName, DOH_REPLACE_ANY );
 	Replace( fieldTemplate, "%{c-type}", cType, DOH_REPLACE_ANY );
 	Replace( fieldTemplate, "%{forth-name}", forthName, DOH_REPLACE_ANY );
-	Replace( fieldTemplate, "%{c-struct-name}", structName, DOH_REPLACE_ANY );
+	Replace( fieldTemplate, "%{c-struct-name}", cStructName, DOH_REPLACE_ANY );
 	Replace( fieldTemplate, "%{c-field-name}", fieldName, DOH_REPLACE_ANY );
 	
 	Printf( output, "\tswigStructField( %s );\n", fieldTemplate );

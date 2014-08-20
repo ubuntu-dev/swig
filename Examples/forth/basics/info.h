@@ -14,6 +14,29 @@
 #define num_null NULL
 #define num_1 1
 
+/* case 1: standalone struct and typedef */
+struct vec2 {
+	int x;
+	int y;
+};
+
+typedef struct vec2 VEC2;
+
+/* case 2: direct typedef struct */
+typedef struct {
+	int x;
+	int y;
+	int z;
+} VEC3;
+
+/* case 3: typedef and named struct */
+typedef struct vec4 {
+	int w;
+	int x;
+	int y;
+	int z;
+} VEC4;
+
 enum DAYS{ MONDAY=1, TUESDAY, WEDNESDAY=10, THURSDAY };
 
 extern char getChar( void );
