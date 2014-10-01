@@ -568,6 +568,17 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 	Replace( action, " ", "", DOH_REPLACE_ANY );
 	Replace( action, "result=", "", DOH_REPLACE_FIRST );
 
+	/* TODO 
+
+		maximum:
+			c-funptr JNINativeInterface-GetVersion() {(*(JNIENv*)ptr)->GetVersion}() a -- a
+		
+		minimum:
+			c-funptr JNINativeInterface-GetVersion() {(int(*)(JNIEnv*))((arg1)->GetVersion);} a -- a
+		should become
+			c-funptr JNINativeInterface-GetVersion() {(int(*)(JNIEnv*))((arg1)->GetVersion)} a{(JNIEnv*)} -- a
+	*/
+
 	parms  = Getattr(node,"membervariableHandler:parms");
 
 	functionWrapper( f_functionPointers, name, forthName, parms, returnType, "FUNCTION_POINTER", "swigFunctionPointer", Char( action ) );
