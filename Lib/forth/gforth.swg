@@ -32,6 +32,6 @@
 #define SWIG_FORTH_GFORTH_COMMENT		"\\ %{value}"
 #define SWIG_FORTH_GFORTH_OUTPUT		"%{value}"
 
-#define SWIG_FORTH_GFORTH_FUNCTION_POINTER	"c-funptr %{forth-name}() {%{c-action}} %{c-type} %{inputs} -- %{output}"
+#define SWIG_FORTH_GFORTH_FUNCTION_POINTER	"c-funptr %{forth-name}() {((%{c-struct-name}*)ptr)->%{field-name}} %{inputs} -- %{output}"
 #define SWIG_FORTH_GFORTH_CALLBACK		"c-callback %{forth-name} %{inputs} -- %{output}"
 

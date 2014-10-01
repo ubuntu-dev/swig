@@ -81,8 +81,8 @@ class FORTH : public Language
 
 		/* shouts */
 		virtual int functionHandler( Node *node ); 
-		String *	functionWrapper( String *name, String *forthName, String *type, String *parmstr, const char *prefix, const char *functionTemplateName = "%s_FUNCTION", const char *cAction = "" );
-		void	functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction = "" );
+		String *	functionWrapper( String *name, String *forthName, String *type, String *parmstr, const char *prefix, const char *functionTemplateName = "%s_FUNCTION", const char *cAction = "", Node *node = NULL );
+		void	functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction = "", Node *node = NULL );
 		/* wrappers */
 
 		virtual int constantWrapper( Node *n );
@@ -581,7 +581,7 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 
 	parms  = Getattr(node,"membervariableHandler:parms");
 
-	functionWrapper( f_functionPointers, name, forthName, parms, returnType, "FUNCTION_POINTER", "swigFunctionPointer", Char( action ) );
+	functionWrapper( f_functionPointers, name, forthName, parms, returnType, "FUNCTION_POINTER", "swigFunctionPointer", Char( action ), node );
 
 	/* clean up */
 	Delete( action );
@@ -591,14 +591,14 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 }
 
 /* wraps all available systems */
-void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction)
+void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction, Node *node)
 {
 	String		*parmstr= ParmList_str_forthargs( parms, "type" ),
 			*parmSpacer = NewString(ParmList_len( parms ) ? " " : ""),
 			*templateString = NewStringf( "%%s_%s", templateName ),
-			*gforth =	functionWrapper( name, forthName, returnType, parmstr, "GFORTH", Char(templateString), cAction ),
-			*swiftForth =	functionWrapper( name, forthName, returnType, parmstr, "SWIFTFORTH", Char(templateString), cAction ),
-			*vfx =		functionWrapper( name, forthName, returnType, parmstr, "VFX", Char(templateString), cAction );
+			*gforth =	functionWrapper( name, forthName, returnType, parmstr, "GFORTH", Char(templateString), cAction, node ),
+			*swiftForth =	functionWrapper( name, forthName, returnType, parmstr, "SWIFTFORTH", Char(templateString), cAction, node ),
+			*vfx =		functionWrapper( name, forthName, returnType, parmstr, "VFX", Char(templateString), cAction, node );
 
 
 	String	*comment = templateInstace( "STACKEFFECT_COMMENT" );
@@ -616,7 +616,7 @@ void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmLi
 }
 
 /* wraps single system */
-String *FORTH::functionWrapper(String *name, String *forthName, String *type, String *parmstr, const char *prefix, const char* functionTemplateName, const char *cAction)
+String *FORTH::functionWrapper(String *name, String *forthName, String *type, String *parmstr, const char *prefix, const char* functionTemplateName, const char *cAction, Node *node)
 {
 	/* transform template declaration */
 	String	*functionTemplate = NewStringf( functionTemplateName , prefix ),
@@ -629,6 +629,14 @@ String *FORTH::functionWrapper(String *name, String *forthName, String *type, St
 	Replace( declaration, "%{inputs}", parmstr, DOH_REPLACE_ANY );
 	Replace( declaration, "%{output}", type, DOH_REPLACE_ANY );
 	Replace( declaration, "%{c-action}", cAction, DOH_REPLACE_ANY );
+
+	if( node != NULL ) {
+		String	*cStructName = Getattr( parentNode( node ), "classtype" ),
+			*fieldName = Getattr( node, "membervariableHandler:sym:name" );
+		
+		Replace( declaration, "%{c-struct-name}", cStructName, DOH_REPLACE_ANY );
+		Replace( declaration, "%{field-name}", fieldName, DOH_REPLACE_ANY );
+	}
 
 	/* take care of vfx's calling convention */
 	Replace( declaration, "%{calling-convention}", (String*) Getattr(m_templates, callingConventionTemplate) , DOH_REPLACE_ANY );
