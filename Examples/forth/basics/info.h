@@ -54,3 +54,7 @@ extern int getIntIndex( int index );
 
 extern int getVec4X( VEC4 v4 );
 
+#define SWIG_FORTH_OPTIONS "forthifyfunctions"
+extern int getVec4Y( VEC4 v4 );
+
+

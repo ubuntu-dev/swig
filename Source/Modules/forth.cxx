@@ -48,6 +48,7 @@ Forth Options (available with -forth)\n\
      -forthifyfunctions    - change c-naming-convention into forth-names e.g. getAllStuff becomes get-all-stuff\n\
      -fsi-output           - generates an fsi(platform-independent) instead of an fs file, which needs to be compiled by gcc\n\
      -no-sectioncomments  - hides section comments in output file\n\
+     -no-callbacks        - disables callback generation\n\
      \n\
      Forth Systems:\n\
      -gforth               - generate wrapper to Gforth (default)\n\
@@ -137,6 +138,7 @@ class FORTH : public Language
 		bool	wrapFunction;			/* set by functionHandler to prevent swig from generating _set and _get fopr structs and alike */
 		bool	containsVariableArguments;	/* set by typeLookup to handle special output in function wrapper */
 		bool	sectionComments;
+		bool	useCallbacks;
 		String	*defaultType;
 		List	*m_structs;
 		Hash	*m_structFields;
@@ -154,6 +156,7 @@ void FORTH::main( int argc, char **argv )
 	defaultType = NULL;
 	containsVariableArguments = false;
 	sectionComments = true;
+	useCallbacks = true;
 
 	/* treat arguments */
 	for( int i = 1; i < argc; i++ ) 
@@ -207,9 +210,14 @@ void FORTH::main( int argc, char **argv )
 			{
 				fputs( usage, stderr );
 			}
-			if( strcmp( argv[i], "-no-sectioncomments" ) == 0)
+			else if( strcmp( argv[i], "-no-sectioncomments" ) == 0)
 			{
 				sectionComments = false;
+				Swig_mark_arg(i);
+			}
+			else if( strcmp( argv[i], "-no-callbacks" ) == 0)
+			{
+				useCallbacks = false;
 				Swig_mark_arg(i);
 			}
 		}       
@@ -433,8 +441,17 @@ int FORTH::constantWrapper(Node *n)
 	/* check constant-type */
 	if( Strncmp( cTypeName, "char const *", 12) == 0 )
 	{
+		/* set module options */
+		if( Strncmp( name, "SWIG_FORTH_OPTIONS", 18 ) == 0 )
+		{
+			/* parse option string */
+			if( Strstr( value, "no-callbacks" ) != NULL )
+				useCallbacks = false;
+			if( Strstr( value, "forthifyfunctions" ) != NULL )
+				forthifyfunctions = true;
+		}
 		/* save template in hashtable */
-		if( Strncmp( name, "SWIG_FORTH_", 11 ) == 0 )
+		else if( Strncmp( name, "SWIG_FORTH_", 11 ) == 0 )
 		{
 			const char *templateData = (const char *) Data( name );
 			templateData += 11;
@@ -517,8 +534,8 @@ int FORTH::structMemberWrapper( Node *node )
 	SwigType *type = Getattr( node, "membervariableHandler:type" );
 	cType = SwigType_str( type, cType );
 
-	//if( SwigType_isfunction( type ) )
-	registerCallback( node, forthName, type, typeLookup( node ) );
+	if( useCallbacks )
+		registerCallback( node, forthName, type, typeLookup( node ) );
 
 	/* create/get hash for this struct's fields */
 	Hash *structFields = Getattr( m_structFields, structName );
