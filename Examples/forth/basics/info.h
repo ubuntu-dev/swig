@@ -35,6 +35,7 @@ typedef struct vec4 {
 	int x;
 	int y;
 	int z;
+	void(*callSomething)(int x, int y, int z);
 } VEC4;
 
 enum DAYS{ MONDAY=1, TUESDAY, WEDNESDAY=10, THURSDAY };
@@ -47,4 +48,6 @@ extern float* getFloatP( void );
 
 extern int getInt( void );
 extern int getIntIndex( int index );
+
+extern int getVec4X( VEC4 v4 );
 

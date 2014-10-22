@@ -81,7 +81,7 @@ class FORTH : public Language
 
 		/* shouts */
 		virtual int functionHandler( Node *node ); 
-		String *	functionWrapper( String *name, String *forthName, String *type, String *parmstr, const char *prefix, const char *functionTemplateName = "%s_FUNCTION", const char *cAction = "", Node *node = NULL );
+		String *	functionWrapper( String *name, String *forthName, String *type, ParmList *parms, const char *prefix, const char *functionTemplateName = "%s_FUNCTION", const char *cAction = "", Node *node = NULL );
 		void	functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction = "", Node *node = NULL );
 		/* wrappers */
 
@@ -98,8 +98,8 @@ class FORTH : public Language
 		void	printComment( File *file, const char *comment ); 
 		void	printComment( File *file, const String *comment ); 
 
-		String	*ParmList_str_forthargs( ParmList *node, const char *attr_name );
-		String	*typeLookup( Node *node );
+		String	*ParmList_str_forthargs( ParmList *node, const char *attr_name, String *structTemplate = NULL );
+		String	*typeLookup( Node *node, String *structTemplate = NULL );
 		String	*forthifyName( String *name );
 		String	*templateInstace( const char *name );
 
@@ -593,12 +593,11 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 /* wraps all available systems */
 void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction, Node *node)
 {
-	String		*parmstr= ParmList_str_forthargs( parms, "type" ),
-			*parmSpacer = NewString(ParmList_len( parms ) ? " " : ""),
+	String		*parmSpacer = NewString(ParmList_len( parms ) ? " " : ""),
 			*templateString = NewStringf( "%%s_%s", templateName ),
-			*gforth =	functionWrapper( name, forthName, returnType, parmstr, "GFORTH", Char(templateString), cAction, node ),
-			*swiftForth =	functionWrapper( name, forthName, returnType, parmstr, "SWIFTFORTH", Char(templateString), cAction, node ),
-			*vfx =		functionWrapper( name, forthName, returnType, parmstr, "VFX", Char(templateString), cAction, node );
+			*gforth =	functionWrapper( name, forthName, returnType, parms, "GFORTH", Char(templateString), cAction, node ),
+			*swiftForth =	functionWrapper( name, forthName, returnType, parms, "SWIFTFORTH", Char(templateString), cAction, node ),
+			*vfx =		functionWrapper( name, forthName, returnType, parms, "VFX", Char(templateString), cAction, node );
 
 
 	String	*comment = templateInstace( "STACKEFFECT_COMMENT" );
@@ -616,12 +615,15 @@ void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmLi
 }
 
 /* wraps single system */
-String *FORTH::functionWrapper(String *name, String *forthName, String *type, String *parmstr, const char *prefix, const char* functionTemplateName, const char *cAction, Node *node)
+String *FORTH::functionWrapper(String *name, String *forthName, String *type, ParmList *parms, const char *prefix, const char* functionTemplateName, const char *cAction, Node *node)
 {
 	/* transform template declaration */
 	String	*functionTemplate = NewStringf( functionTemplateName , prefix ),
 		*callingConventionTemplate = NewStringf( "%s_CALLCONV", prefix ),
 		*outputTemplate = NewStringf( "%s_OUTPUT", prefix ),
+                *structParameterTemplate = NewStringf( "%s_STRUCT_PARAMETER", prefix),
+                *structParameter = templateInstace( Char(structParameterTemplate) ),
+                *parmstr = ParmList_str_forthargs( parms, "type", structParameter ),
 		*declaration = templateInstace( Char(functionTemplate) );
 
 	Replace( declaration, "%{c-name}", name, DOH_REPLACE_ANY );
@@ -645,6 +647,9 @@ String *FORTH::functionWrapper(String *name, String *forthName, String *type, St
 	Replace( output, "%{value}", declaration, DOH_REPLACE_ANY );
 
 	Delete( declaration );
+        Delete( parmstr );
+        Delete( structParameter );
+        Delete( structParameterTemplate );
 	Delete( outputTemplate );
 	Delete( callingConventionTemplate );
 	Delete( functionTemplate );
@@ -708,7 +713,7 @@ void	FORTH::printComment( File *file, const String *comment )
 	Printf( file, "\n\tswigComment(\"%s\");\n", comment );
 }
 
-String *FORTH::ParmList_str_forthargs( ParmList *node, const char *attr_name )
+String *FORTH::ParmList_str_forthargs( ParmList *node, const char *attr_name, String *structTemplate )
 {
 	String *out = NewStringEmpty();
 	while( node )
@@ -716,8 +721,9 @@ String *FORTH::ParmList_str_forthargs( ParmList *node, const char *attr_name )
 		String *type;
 		
 		/* if type is requested, perform a lookup */
-		if(!strncmp(attr_name, "type", 4))
-			type = typeLookup( node );
+		if(!strncmp(attr_name, "type", 4)) {
+			type = typeLookup( node, structTemplate );
+                }
 		else
 		{
 			/* otherwise get the item */
@@ -740,7 +746,7 @@ String *FORTH::ParmList_str_forthargs( ParmList *node, const char *attr_name )
 	return out;
 }
 
-String *FORTH::typeLookup( Node *node )
+String *FORTH::typeLookup( Node *node, String *structTemplate )
 {
 	String		*typeName;
 	String		*resultType = NewString("");
@@ -754,7 +760,17 @@ String *FORTH::typeLookup( Node *node )
 	if( !foundType && itemExists( m_structs, cTypeName ) )
 	{
 		/* found, current type is struct */
-		typeName = NewString( "struct" );
+		/* warn if no template is present */
+		if( structTemplate == NULL || Len( structTemplate ) == 0 )
+		{
+	    		Swig_warning( WARN_FORTH_NONTEMPLATE_STRUCT, input_file, line_number, "No template passed for struct \"%s\", using \"struct\"\n", cTypeName);
+			typeName = NewString( "struct" );
+		}
+		else
+		{
+			typeName = NewString( structTemplate );
+			Replace( typeName, "%{c-name}", cTypeName, DOH_REPLACE_ANY );
+	    	}
 		foundType = true;
 	}
 

@@ -28,6 +28,7 @@
 
 
 #define SWIG_FORTH_GFORTH_PARAMETER		"%{type}"
+#define SWIG_FORTH_GFORTH_STRUCT_PARAMETER	"a{*(%{c-name}*)}"
 #define SWIG_FORTH_GFORTH_FUNCTION		"c-function %{c-name} %{forth-name} %{inputs} -- %{output}"
 #define SWIG_FORTH_GFORTH_COMMENT		"\\ %{value}"
 #define SWIG_FORTH_GFORTH_OUTPUT		"%{value}"
