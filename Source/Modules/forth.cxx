@@ -534,8 +534,7 @@ int FORTH::structMemberWrapper( Node *node )
 	SwigType *type = Getattr( node, "membervariableHandler:type" );
 	cType = SwigType_str( type, cType );
 
-	if( useCallbacks )
-		registerCallback( node, forthName, type, typeLookup( node ) );
+	registerCallback( node, forthName, type, typeLookup( node ) );
 
 	/* create/get hash for this struct's fields */
 	Hash *structFields = Getattr( m_structFields, structName );
@@ -586,7 +585,8 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 	SwigType_push( functionType, poppedType );
 
 	/* callback */
-	functionWrapper( f_callbacks, name, forthName, parms, returnType, "CALLBACK", "swigCallback" );
+	if(useCallbacks)
+		functionWrapper( f_callbacks, name, forthName, parms, returnType, "CALLBACK", "swigCallback" );
 
 	/* function pointer */
 	String *action = NewString( Getattr( node, "wrap:action" ) );
