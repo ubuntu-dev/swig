@@ -27,6 +27,7 @@
  *****************************************************************************/
 
 #define SWIG_FORTH_SECTION_CONSTANTS_INT	"----===< int constants ===>-----\n"
+#define SWIG_FORTH_SECTION_CONSTANTS_LONG	"----===< long constants ===>-----\n"
 #define SWIG_FORTH_SECTION_CONSTANTS_FLOAT	"---===< float constants >===----\n"
 #define SWIG_FORTH_SECTION_CONSTANTS_STRING	"---===< string constants >===---\n"
 

@@ -20,6 +20,11 @@ void swigIntConstant( long constant, char *name )
 	printf( "%ld\tconstant %s\n", constant, name );
 }
 
+void swigLongConstant( long long constant, char *name )
+{
+	printf( "%lld.\t2constant %s\n", constant, name );
+}
+
 void swigFloatConstant( double constant, char *name )
 {
 	char buffer[128];

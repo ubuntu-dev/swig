@@ -9,6 +9,7 @@
 #define thaNAME "glforth rocks"
 #define thaMul (1*3)
 #define thaFloat 1.23
+#define thaBig 0xFFFFFFFFFFFFFFFFull
 
 #define num_0 0
 #define num_null NULL

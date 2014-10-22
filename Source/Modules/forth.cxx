@@ -123,7 +123,7 @@ class FORTH : public Language
 
 		File *f_include;
 		File *f_enums;
-		File *f_intConstants, *f_floatConstants, *f_stringConstants;
+		File *f_intConstants, *f_longConstants, *f_floatConstants, *f_stringConstants;
 		File *f_functions;
 		File *f_init;
 
@@ -259,7 +259,10 @@ int FORTH::top( Node *n )
 	f_wrappers = NewString( "" );
 	f_include = NewString( "" );
 	f_enums = NewString( "" );
-	f_intConstants = NewString( "" ); f_floatConstants = NewString( "" ); f_stringConstants = NewString( "" );
+	f_intConstants = NewString( "" );
+	f_longConstants = NewString( "" );
+	f_floatConstants = NewString( "" );
+	f_stringConstants = NewString( "" );
 	f_functions = NewString( "" );
 	m_structFields = NewHash();
 	m_structs = NewList();
@@ -284,9 +287,6 @@ int FORTH::top( Node *n )
 	/* Write all to the file */
 
 	/* user-includes */
-	//Printf( stdout, "READYYYYY-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*\n" );
-	//Dump( stdout, f_intConstants );
-	//Printf( stdout, "DONE-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*\n" );
 	Dump( f_include, f_begin );
 
 	/* Output module initialization code */
@@ -295,6 +295,8 @@ int FORTH::top( Node *n )
 	/* TODO: ifdefs for constants? */
 	/* constants */
 	dumpSection( "CONSTANTS_INT", f_intConstants );
+
+	dumpSection( "CONSTANTS_LONG", f_longConstants );
 
 	dumpSection( "CONSTANTS_FLOAT", f_floatConstants );
 
@@ -446,13 +448,15 @@ int FORTH::constantWrapper(Node *n)
 	else
 	{
 		/* resolve type and create according constant */
-		if( Strncmp( type, "n", 1 ) == 0 )
+                if( Strncmp( type, "d", 1 ) == 0 || Strncmp( type, "ud", 2 ) == 0 )
+			Printf( f_longConstants, "\t#ifdef %s\n\t\tswigLongConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
+		else if( Strncmp( type, "n", 1 ) == 0 || Strncmp( type, "u", 1 ) == 0 )
 			Printf( f_intConstants, "\t#ifdef %s\n\t\tswigIntConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
 		else if( Strncmp( type, "r", 1 ) == 0 )
 			Printf( f_floatConstants, "\t#ifdef %s\n\t\tswigFloatConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
 		else
 			/* unable to find correct type */
-			Swig_warning( WARN_FORTH_CONSTANT_TYPE_UNDEF, input_file, line_number, "No forth type found for c-type \"%s\", skipping constant \"%s\"\n", cTypeName, name );
+			Swig_warning( WARN_FORTH_CONSTANT_TYPE_UNDEF, input_file, line_number, "No forth type \"%s\" found for c-type \"%s\", skipping constant \"%s\"\n", type, cTypeName, name );
 	}
 
 	return SWIG_OK;
