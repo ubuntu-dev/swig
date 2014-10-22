@@ -448,10 +448,14 @@ int FORTH::constantWrapper(Node *n)
 	else
 	{
 		/* resolve type and create according constant */
-                if( Strncmp( type, "d", 1 ) == 0 || Strncmp( type, "ud", 2 ) == 0 )
+                if( Strncmp( type, "d", 1 ) == 0 )
 			Printf( f_longConstants, "\t#ifdef %s\n\t\tswigLongConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
-		else if( Strncmp( type, "n", 1 ) == 0 || Strncmp( type, "u", 1 ) == 0 )
+		else if( Strncmp( type, "ud", 2 ) == 0 )
+			Printf( f_longConstants, "\t#ifdef %s\n\t\tswigUnsignedLongConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
+		else if( Strncmp( type, "n", 1 ) == 0 )
 			Printf( f_intConstants, "\t#ifdef %s\n\t\tswigIntConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
+		else if( Strncmp( type, "u", 1 ) == 0 )
+			Printf( f_intConstants, "\t#ifdef %s\n\t\tswigUnsignedIntConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
 		else if( Strncmp( type, "r", 1 ) == 0 )
 			Printf( f_floatConstants, "\t#ifdef %s\n\t\tswigFloatConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
 		else

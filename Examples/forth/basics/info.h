@@ -6,9 +6,11 @@
 //#include <unistd.h>
 //
 #define thaFIZ 42
+#define thaNoLive 0xFFFFFFFFFFFFFFFFu
 #define thaNAME "glforth rocks"
 #define thaMul (1*3)
 #define thaFloat 1.23
+#define thaBigMinus -0xFFFFFFFFFFFFFFFll
 #define thaBig 0xFFFFFFFFFFFFFFFFull
 
 #define num_0 0
