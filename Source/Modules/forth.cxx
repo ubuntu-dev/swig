@@ -584,6 +584,8 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 	/* common function-pointer & callback */
 	SwigType_push( functionType, poppedType );
 
+	parms  = Getattr(node,"membervariableHandler:parms");
+
 	/* callback */
 	if(useCallbacks)
 		functionWrapper( f_callbacks, name, forthName, parms, returnType, "CALLBACK", "swigCallback" );
@@ -603,8 +605,6 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 		should become
 			c-funptr JNINativeInterface-GetVersion() {(int(*)(JNIEnv*))((arg1)->GetVersion)} a{(JNIEnv*)} -- a
 	*/
-
-	parms  = Getattr(node,"membervariableHandler:parms");
 
 	functionWrapper( f_functionPointers, name, forthName, parms, returnType, "FUNCTION_POINTER", "swigFunctionPointer", Char( action ), node );
 
