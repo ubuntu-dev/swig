@@ -534,8 +534,7 @@ int FORTH::structMemberWrapper( Node *node )
 	SwigType *type = Getattr( node, "membervariableHandler:type" );
 	cType = SwigType_str( type, cType );
 
-	if( useCallbacks )
-		registerCallback( node, forthName, type, typeLookup( node ) );
+	registerCallback( node, forthName, type, typeLookup( node ) );
 
 	/* create/get hash for this struct's fields */
 	Hash *structFields = Getattr( m_structFields, structName );
@@ -585,8 +584,11 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 	/* common function-pointer & callback */
 	SwigType_push( functionType, poppedType );
 
+	parms  = Getattr(node,"membervariableHandler:parms");
+
 	/* callback */
-	functionWrapper( f_callbacks, name, forthName, parms, returnType, "CALLBACK", "swigCallback" );
+	if(useCallbacks)
+		functionWrapper( f_callbacks, name, forthName, parms, returnType, "CALLBACK", "swigCallback" );
 
 	/* function pointer */
 	String *action = NewString( Getattr( node, "wrap:action" ) );
@@ -603,8 +605,6 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 		should become
 			c-funptr JNINativeInterface-GetVersion() {(int(*)(JNIEnv*))((arg1)->GetVersion)} a{(JNIEnv*)} -- a
 	*/
-
-	parms  = Getattr(node,"membervariableHandler:parms");
 
 	functionWrapper( f_functionPointers, name, forthName, parms, returnType, "FUNCTION_POINTER", "swigFunctionPointer", Char( action ), node );
 
