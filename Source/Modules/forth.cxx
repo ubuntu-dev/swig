@@ -536,10 +536,6 @@ int FORTH::structMemberWrapper( Node *node )
 	SwigType *type = Getattr( node, "membervariableHandler:type" );
 	cType = SwigType_str( type, cType );
 
-	Printf( stdout, "\n===============================================STRUCT: %s\n%s\n", fieldName, node );
-	Printf( stdout, "\n-----------------------------------------------STRUCT: %s\n%s\n", fieldName );
-	//dumpHash( node );
-
 	registerCallback( node, forthName, type, typeLookup( node ) );
 
 	/* create/get hash for this struct's fields */
