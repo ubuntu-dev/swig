@@ -38,7 +38,9 @@ typedef struct vec4 {
 	int x;
 	int y;
 	int z;
-	void(*callSomething)(int x, int y, int z);
+	int(*callInt)(int x, int y, int z);
+	void(*callVoid)(int x, int y, int z);
+	void*(*callVoidP)(int x, int y, int z);
 } VEC4;
 
 enum DAYS{ MONDAY=1, TUESDAY, WEDNESDAY=10, THURSDAY };
@@ -58,3 +60,5 @@ extern int getVec4X( VEC4 v4 );
 extern int getVec4Y( VEC4 v4 );
 
 
+int(*bareCallInt)(int x, int y, int z);
+void(*bareCallVoid)(int x, int y, int z);

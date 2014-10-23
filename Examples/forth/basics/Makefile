@@ -13,6 +13,9 @@ $(OUTPUT).fsx: $(OUTPUT).fsi
 $(OUTPUT).fsi:
 	$(SWIG) $(OPTIONS) -o $(OUTPUT)-fsi.c $(INTERFACE)
 
+debug-tree:
+	$(SWIG) -python -debug-module 4 $(INTERFACE)
+
 run: $(OUTPUT).gforth.fs $(OUTPUT).swiftforth.fs $(OUTPUT).vfx.fs $(OUTPUT).fsi.fs
 	cat $(OUTPUT).gforth.fs $(OUTPUT).swiftforth.fs $(OUTPUT).vfx.fs $(OUTPUT).fsi.fs
 
