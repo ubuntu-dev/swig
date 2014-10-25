@@ -536,10 +536,6 @@ int FORTH::structMemberWrapper( Node *node )
 	SwigType *type = Getattr( node, "membervariableHandler:type" );
 	cType = SwigType_str( type, cType );
 
-	Printf( stdout, "\n===============================================STRUCT: %s\n%s\n", fieldName, node );
-	Printf( stdout, "\n-----------------------------------------------STRUCT: %s\n%s\n", fieldName );
-	//dumpHash( node );
-
 	registerCallback( node, forthName, type, typeLookup( node ) );
 
 	/* create/get hash for this struct's fields */
@@ -584,13 +580,26 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 		return;
 
 	/* restore "pure" callback type */
-	ParmList	*parms  = Getattr(node,"parms");
+	ParmList	*parms;
+	SwigType	*funtype;
+	SwigType	*rettype;
+	Node		*returnNode;
 	String		*forthName = name;
 
 	/* common function-pointer & callback */
 	SwigType_push( functionType, poppedType );
 
 	parms  = Getattr(node,"membervariableHandler:parms");
+	funtype= Getattr(node,"membervariableHandler:type");
+	// extract return type: First, we need to delete the pointer
+	rettype= SwigType_del_pointer(Copy(funtype));
+	// then we need to pop the function
+	SwigType_pop_function(rettype);
+	// next, we need to create a node with the type set
+	returnNode= NewHash();
+	Setattr(returnNode, "type", rettype);
+	// finally, we can look up the Forth type for this node
+	returnType=typeLookup(returnNode);
 
 	/* callback */
 	if(useCallbacks)
@@ -786,7 +795,6 @@ String *FORTH::typeLookup( Node *node, String *structTemplate )
 
 	/* Get return types */
 	foundType = ( typeName = Swig_typemap_lookup( "forth", node, "", 0 ) );
-
 	/* Type not found so far, check structs for an occurance of cTypeName */
 	if( !foundType && itemExists( m_structs, cTypeName ) )
 	{
@@ -813,6 +821,7 @@ String *FORTH::typeLookup( Node *node, String *structTemplate )
 	{
 		containsVariableArguments = true;
 		Swig_warning( WARN_FORTH_VARIABLE_ARGUMENTS, input_file, line_number, "Variable Argument List detected ( \"%s\" ), using \"%s\"\n", cTypeName, defaultType );
+		Printf( resultType, "n" );
 	}
 	else
 	{
