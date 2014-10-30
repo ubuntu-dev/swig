@@ -62,3 +62,5 @@ extern int getVec4Y( VEC4 v4 );
 
 int(*bareCallInt)(int x, int y, int z);
 void(*bareCallVoid)(int x, int y, int z);
+
+typedef void(*typedefCallback)(int x, int y, int z);

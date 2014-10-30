@@ -91,7 +91,7 @@ class FORTH : public Language
 
 		int	structMemberWrapper( Node *n );
 
-		void	registerCallback( Node *n, String *name, SwigType *type, SwigType *returnType );
+		void	registerCallback( Node *node, String *name, SwigType *type, ParmList *parms, SwigType *funtype );
 
 	private:
 		void	printNewline( File *file );
@@ -407,14 +407,23 @@ int FORTH::constructorDeclaration( Node *n )
 }
 
 /* only for visualisation */
-int FORTH::typedefHandler( Node *n )
+int FORTH::typedefHandler( Node *node )
 {
 #if FORTH_DEBUG
-	String *name = Getattr( n, "sym:name" );
-	Printf( stdout, "FORTH_DEBUG: typedef >%s<\n\t%s\n", name, n );
+	/* pretty-print type */
+	Printf( stdout, "FORTH_DEBUG: typedef \n\t%s\n", node );
 #endif
 
-	return Language::typedefHandler( n );
+	if( Strncmp( Getattr( node, "type" ), "p.f(", 4 ) == 0 )
+	{
+		String *name = Getattr( node, "sym:name" );
+		ParmList *parms  = Getattr( node,"parms");
+		SwigType *type = Getattr( node, "type" );
+
+		registerCallback( node, name, type, parms, type );
+	}
+
+	return Language::typedefHandler( node );
 }
 
 /* context-sensive wrapping */
@@ -536,7 +545,9 @@ int FORTH::structMemberWrapper( Node *node )
 	SwigType *type = Getattr( node, "membervariableHandler:type" );
 	cType = SwigType_str( type, cType );
 
-	registerCallback( node, forthName, type, typeLookup( node ) );
+	ParmList *parms  = Getattr(node,"membervariableHandler:parms");
+	SwigType *funtype= Getattr(node,"membervariableHandler:type");
+	registerCallback( node, forthName, type, parms, funtype );
 
 	/* create/get hash for this struct's fields */
 	Hash *structFields = Getattr( m_structFields, structName );
@@ -565,32 +576,33 @@ int FORTH::structMemberWrapper( Node *node )
 	return SWIG_OK;
 }
 
-void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType *returnType )
+void	FORTH::registerCallback( Node *node, String *name, SwigType *type, ParmList *parms, SwigType *funtype )
 {
+	Printf( stderr, "REGCALL\n" );
 	String	*cType = SwigType_str( type, NewString("") ),
 		*functionType = NewString( type ),
 		*poppedType;
 
+	Printf( stderr, "REGCALL1\n" );
 	/* remove all prefix pointers */
 	while( SwigType_ispointer( ( poppedType = SwigType_pop( functionType ) ) ) )
 		Delete( poppedType );
 
+	Printf( stderr, "REGCALL2\n" );
 	/* if this type isn't a callback, leave */
 	if( SwigType_isfunction( poppedType ) == 0 )
 		return;
 
+	Printf( stderr, "REGCALL3\n" );
 	/* restore "pure" callback type */
-	ParmList	*parms;
-	SwigType	*funtype;
-	SwigType	*rettype;
+	SwigType	*rettype, *returnType;
 	Node		*returnNode;
 	String		*forthName = name;
 
 	/* common function-pointer & callback */
 	SwigType_push( functionType, poppedType );
 
-	parms  = Getattr(node,"membervariableHandler:parms");
-	funtype= Getattr(node,"membervariableHandler:type");
+	Printf( stderr, "REGCALL4\n" );
 	// extract return type: First, we need to delete the pointer
 	rettype= SwigType_del_pointer(Copy(funtype));
 	// then we need to pop the function
@@ -600,6 +612,7 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, SwigType
 	Setattr(returnNode, "type", rettype);
 	// finally, we can look up the Forth type for this node
 	returnType=typeLookup(returnNode);
+	Printf( stderr, "REGCALL5\n" );
 
 	/* callback */
 	if(useCallbacks)
