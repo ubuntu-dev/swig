@@ -83,8 +83,8 @@ class FORTH : public Language
 
 		/* shouts */
 		virtual int functionHandler( Node *node ); 
-		String *	functionWrapper( String *name, String *forthName, String *type, ParmList *parms, const char *prefix, const char *functionTemplateName = "%s_FUNCTION", const char *cAction = "", Node *node = NULL );
-		void	functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction = "", Node *node = NULL );
+		String *	functionWrapper( String *name, String *forthName, String *type, ParmList *parms, const char *prefix, const char *functionTemplateName = "%s_FUNCTION", const char *cAction = "", Node *node = NULL, String* cFunType = NULL );
+		void	functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction = "", Node *node = NULL, String* cFunType = NULL );
 		/* wrappers */
 
 		virtual int constantWrapper( Node *n );
@@ -93,6 +93,8 @@ class FORTH : public Language
 		int	structMemberWrapper( Node *n );
 
 		void	registerCallback( Node *node, String *name, SwigType *type, ParmList *parms, SwigType *funtype );
+		void	registerStructFunptr( Node *node, String *name, SwigType *type, ParmList *parms, SwigType *funtype );
+		void	registerFunptr( Node *node, String *name, SwigType *type, ParmList *parms, SwigType *funtype );
 
 	private:
 		void	printNewline( File *file );
@@ -141,7 +143,10 @@ class FORTH : public Language
 		bool	wrapFunction;			/* set by functionHandler to prevent swig from generating _set and _get fopr structs and alike */
 		bool	containsVariableArguments;	/* set by typeLookup to handle special output in function wrapper */
 		bool	sectionComments;
-		bool	useCallbacks;
+		bool	useCallbackStruct;
+		bool	useCallbackTypedef;
+		bool	useFunptrStruct;
+		bool	useFunptrTypedef;
 		String	*defaultType;
 		List	*m_structs;
 		Hash	*m_structFields;
@@ -159,7 +164,10 @@ void FORTH::main( int argc, char **argv )
 	defaultType = NULL;
 	containsVariableArguments = false;
 	sectionComments = true;
-	useCallbacks = true;
+	useCallbackStruct = false;
+	useCallbackTypedef = true;
+	useFunptrStruct = true;
+	useFunptrTypedef = false;
 
 	/* treat arguments */
 	for( int i = 1; i < argc; i++ ) 
@@ -220,7 +228,14 @@ void FORTH::main( int argc, char **argv )
 			}
 			else if( strcmp( argv[i], "-no-callbacks" ) == 0)
 			{
-				useCallbacks = false;
+				useCallbackStruct = false;
+				useCallbackTypedef = false;
+				Swig_mark_arg(i);
+			}
+			else if( strcmp( argv[i], "-no-funptrs" ) == 0)
+			{
+				useFunptrStruct = false;
+				useFunptrTypedef = false;
 				Swig_mark_arg(i);
 			}
 		}       
@@ -421,7 +436,10 @@ int FORTH::typedefHandler( Node *node )
 		ParmList *parms  = Getattr( node,"parms");
 		SwigType *type = Getattr( node, "type" );
 
-		registerCallback( node, name, type, parms, type );
+		if(useCallbackTypedef)
+			registerCallback( node, name, type, parms, type );
+		if(useFunptrTypedef)
+			registerFunptr( node, name, type, parms, type );
 	}
 
 	return Language::typedefHandler( node );
@@ -457,8 +475,40 @@ int FORTH::constantWrapper(Node *n)
 		if( Strncmp( name, AL("SWIG_FORTH_OPTIONS")) == 0 )
 		{
 			/* parse option string */
-			if( Strstr( value, "no-callbacks" ) != NULL )
-				useCallbacks = false;
+			if( Strstr( value, "callback-struct" ) != NULL ) {
+				useCallbackStruct = true;
+			}
+			if( Strstr( value, "callback-typedef" ) != NULL ) {
+				useCallbackTypedef = true;
+			}
+			if( Strstr( value, "funptr-struct" ) != NULL ) {
+				useFunptrStruct = true;
+			}
+			if( Strstr( value, "funptr-typedef" ) != NULL ) {
+				useFunptrTypedef = true;
+			}
+			// matching with no-prefix must come after that
+			// to overwrite wrong detection above
+			if( Strstr( value, "no-callback-struct" ) != NULL ) {
+				useCallbackStruct = false;
+			}
+			if( Strstr( value, "no-callback-typedef" ) != NULL ) {
+				useCallbackTypedef = false;
+			}
+			if( Strstr( value, "no-funptr-struct" ) != NULL ) {
+				useFunptrStruct = false;
+			}
+			if( Strstr( value, "no-funptr-typedef" ) != NULL ) {
+				useFunptrTypedef = false;
+			}
+			if( Strstr( value, "no-callbacks" ) != NULL ) {
+				useCallbackStruct = false;
+				useCallbackTypedef = false;
+			}
+			if( Strstr( value, "no-funptrs" ) != NULL ) {
+				useFunptrStruct = false;
+				useFunptrTypedef = false;
+			}
 			if( Strstr( value, "forthifyfunctions" ) != NULL )
 				forthifyfunctions = true;
 		}
@@ -548,7 +598,10 @@ int FORTH::structMemberWrapper( Node *node )
 
 	ParmList *parms  = Getattr(node,"membervariableHandler:parms");
 	SwigType *funtype= Getattr(node,"membervariableHandler:type");
-	registerCallback( node, forthName, type, parms, funtype );
+	if(useCallbackStruct)
+		registerCallback( node, forthName, type, parms, funtype );
+	if(useFunptrStruct)
+		registerStructFunptr( node, forthName, type, parms, funtype );
 
 	/* create/get hash for this struct's fields */
 	Hash *structFields = Getattr( m_structFields, structName );
@@ -610,9 +663,44 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, ParmList
 	returnType=typeLookup(returnNode);
 
 	/* callback */
-	if(useCallbacks)
-		functionWrapper( f_callbacks, name, forthName, parms, returnType, "CALLBACK", "swigCallback" );
+	functionWrapper( f_callbacks, name, forthName, parms, returnType, "CALLBACK", "swigCallback" );
 
+	Delete( poppedType );
+	Delete( functionType );
+	Delete( cType );
+}
+
+void	FORTH::registerStructFunptr( Node *node, String *name, SwigType *type, ParmList *parms, SwigType *funtype )
+{
+	String	*cType = SwigType_str( type, NewString("") ),
+		*functionType = NewString( type ),
+		*poppedType;
+
+	/* remove all prefix pointers */
+	while( SwigType_ispointer( ( poppedType = SwigType_pop( functionType ) ) ) )
+		Delete( poppedType );
+
+	/* if this type isn't a callback, leave */
+	if( SwigType_isfunction( poppedType ) == 0 )
+		return;
+
+	/* restore "pure" callback type */
+	SwigType	*rettype, *returnType;
+	Node		*returnNode;
+	String		*forthName = name;
+
+	/* common function-pointer & callback */
+	SwigType_push( functionType, poppedType );
+
+	// extract return type: First, we need to delete the pointer
+	rettype= SwigType_del_pointer(Copy(funtype));
+	// then we need to pop the function
+	SwigType_pop_function(rettype);
+	// next, we need to create a node with the type set
+	returnNode= NewHash();
+	Setattr(returnNode, "type", rettype);
+	// finally, we can look up the Forth type for this node
+	returnType=typeLookup(returnNode);
 	/* function pointer */
 	String *action = NewString( Getattr( node, "wrap:action" ) );
 	Replace( action, " ", "", DOH_REPLACE_ANY );
@@ -629,7 +717,65 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, ParmList
 			c-funptr JNINativeInterface-GetVersion() {(int(*)(JNIEnv*))((arg1)->GetVersion)} a{(JNIEnv*)} -- a
 	*/
 
-	functionWrapper( f_functionPointers, name, forthName, parms, returnType, "FUNCTION_POINTER", "swigFunctionPointer", Char( action ), node );
+	functionWrapper( f_functionPointers, name, forthName, parms, returnType, "STRUCT_FUNCTION_POINTER", "swigFunctionPointer", Char( action ), node );
+
+	/* clean up */
+	Delete( action );
+	Delete( poppedType );
+	Delete( functionType );
+	Delete( cType );
+}
+
+void	FORTH::registerFunptr( Node *node, String *name, SwigType *type, ParmList *parms, SwigType *funtype )
+{
+	String	*cType = SwigType_str( type, NewString("") ),
+		*functionType = NewString( type ),
+		*poppedType;
+
+	/* remove all prefix pointers */
+	while( SwigType_ispointer( ( poppedType = SwigType_pop( functionType ) ) ) )
+		Delete( poppedType );
+
+	/* if this type isn't a callback, leave */
+	if( SwigType_isfunction( poppedType ) == 0 )
+		return;
+
+	/* restore "pure" callback type */
+	SwigType	*rettype, *returnType;
+	Node		*returnNode;
+	String		*forthName = name;
+	String		*cFunType;
+
+	/* common function-pointer & callback */
+	SwigType_push( functionType, poppedType );
+
+	cFunType= SwigType_str(funtype, 0);
+	// extract return type: First, we need to delete the pointer
+	rettype= SwigType_del_pointer(Copy(funtype));
+	// then we need to pop the function
+	SwigType_pop_function(rettype);
+	// next, we need to create a node with the type set
+	returnNode= NewHash();
+	Setattr(returnNode, "type", rettype);
+	// finally, we can look up the Forth type for this node
+	returnType=typeLookup(returnNode);
+	/* function pointer */
+	String *action = NewString( Getattr( node, "wrap:action" ) );
+	Replace( action, " ", "", DOH_REPLACE_ANY );
+	Replace( action, "result=", "", DOH_REPLACE_FIRST );
+
+	/* TODO 
+
+		maximum:
+			c-funptr JNINativeInterface-GetVersion() {(*(JNIENv*)ptr)->GetVersion}() a -- a
+		
+		minimum:
+			c-funptr JNINativeInterface-GetVersion() {(int(*)(JNIEnv*))((arg1)->GetVersion);} a -- a
+		should become
+			c-funptr JNINativeInterface-GetVersion() {(int(*)(JNIEnv*))((arg1)->GetVersion)} a{(JNIEnv*)} -- a
+	*/
+
+	functionWrapper( f_functionPointers, name, forthName, parms, returnType, "FUNCTION_POINTER", "swigFunctionPointer", Char( action ), node, cFunType );
 
 	/* clean up */
 	Delete( action );
@@ -639,13 +785,13 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, ParmList
 }
 
 /* wraps all available systems */
-void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction, Node *node)
+void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmList *parms, String *returnType, const char *templateName, const char *functionName, const char *cAction, Node *node, String* cFunType)
 {
 	String		*parmSpacer = NewString(ParmList_len( parms ) ? " " : ""),
 			*templateString = NewStringf( "%%s_%s", templateName ),
-			*gforth =	functionWrapper( name, forthName, returnType, parms, "GFORTH", Char(templateString), cAction, node ),
-			*swiftForth =	functionWrapper( name, forthName, returnType, parms, "SWIFTFORTH", Char(templateString), cAction, node ),
-			*vfx =		functionWrapper( name, forthName, returnType, parms, "VFX", Char(templateString), cAction, node );
+			*gforth =	functionWrapper( name, forthName, returnType, parms, "GFORTH", Char(templateString), cAction, node, cFunType ),
+			*swiftForth =	functionWrapper( name, forthName, returnType, parms, "SWIFTFORTH", Char(templateString), cAction, node, cFunType ),
+			*vfx =		functionWrapper( name, forthName, returnType, parms, "VFX", Char(templateString), cAction, node, cFunType );
 
 
 	String	*comment = templateInstace( "STACKEFFECT_COMMENT" );
@@ -663,7 +809,7 @@ void FORTH::functionWrapper( File *file, String *name, String *forthName, ParmLi
 }
 
 /* wraps single system */
-String *FORTH::functionWrapper(String *name, String *forthName, String *type, ParmList *parms, const char *prefix, const char* functionTemplateName, const char *cAction, Node *node)
+String *FORTH::functionWrapper(String *name, String *forthName, String *type, ParmList *parms, const char *prefix, const char* functionTemplateName, const char *cAction, Node *node, String * cFunType)
 {
 	/* transform template declaration */
 	String	*functionTemplate = NewStringf( functionTemplateName , prefix ),
@@ -686,6 +832,10 @@ String *FORTH::functionWrapper(String *name, String *forthName, String *type, Pa
 		
 		Replace( declaration, "%{c-struct-name}", cStructName, DOH_REPLACE_ANY );
 		Replace( declaration, "%{field-name}", fieldName, DOH_REPLACE_ANY );
+	}
+
+	if( cFunType != NULL ) {
+		Replace( declaration, "%{c-funtype}", cFunType, DOH_REPLACE_ANY );
 	}
 
 	/* take care of vfx's calling convention */
