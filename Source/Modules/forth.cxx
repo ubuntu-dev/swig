@@ -38,6 +38,7 @@
 #include "swigmod.h"
 
 #define FORTH_DEFAULT_TYPE "n"
+#define AL(s) s, sizeof(s)
 
 static const char *usage = (char *) "\
 Forth Options (available with -forth)\n\
@@ -450,10 +451,10 @@ int FORTH::constantWrapper(Node *n)
 	String *value = Getattr( n, "value" );
 
 	/* check constant-type */
-	if( Strncmp( cTypeName, "char const *", 12) == 0 )
+	if( Strncmp( cTypeName, AL("char const *")) == 0 )
 	{
 		/* set module options */
-		if( Strncmp( name, "SWIG_FORTH_OPTIONS", 18 ) == 0 )
+		if( Strncmp( name, AL("SWIG_FORTH_OPTIONS")) == 0 )
 		{
 			/* parse option string */
 			if( Strstr( value, "no-callbacks" ) != NULL )
@@ -462,7 +463,7 @@ int FORTH::constantWrapper(Node *n)
 				forthifyfunctions = true;
 		}
 		/* save template in hashtable */
-		else if( Strncmp( name, "SWIG_FORTH_", 11 ) == 0 )
+		else if( Strncmp( name, AL("SWIG_FORTH_")-1) == 0 )
 		{
 			const char *templateData = (const char *) Data( name );
 			templateData += 11;
@@ -476,15 +477,15 @@ int FORTH::constantWrapper(Node *n)
 	else
 	{
 		/* resolve type and create according constant */
-                if( Strncmp( type, "d", 1 ) == 0 )
+                if( Strncmp( type, AL("d")) == 0 )
 			Printf( f_longConstants, "\t#ifdef %s\n\t\tswigLongConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
-		else if( Strncmp( type, "ud", 2 ) == 0 )
+		else if( Strncmp( type, AL("ud")) == 0 )
 			Printf( f_longConstants, "\t#ifdef %s\n\t\tswigUnsignedLongConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
-		else if( Strncmp( type, "n", 1 ) == 0 )
+		else if( Strncmp( type, AL("n")) == 0 )
 			Printf( f_intConstants, "\t#ifdef %s\n\t\tswigIntConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
-		else if( Strncmp( type, "u", 1 ) == 0 )
+		else if( Strncmp( type, AL("u")) == 0 )
 			Printf( f_intConstants, "\t#ifdef %s\n\t\tswigUnsignedIntConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
-		else if( Strncmp( type, "r", 1 ) == 0 )
+		else if( Strncmp( type, AL("r")) == 0 )
 			Printf( f_floatConstants, "\t#ifdef %s\n\t\tswigFloatConstant( %s, \"%s\" );\n\t#endif\n", name, name, name );
 		else
 			/* unable to find correct type */
@@ -578,22 +579,18 @@ int FORTH::structMemberWrapper( Node *node )
 
 void	FORTH::registerCallback( Node *node, String *name, SwigType *type, ParmList *parms, SwigType *funtype )
 {
-	Printf( stderr, "REGCALL\n" );
 	String	*cType = SwigType_str( type, NewString("") ),
 		*functionType = NewString( type ),
 		*poppedType;
 
-	Printf( stderr, "REGCALL1\n" );
 	/* remove all prefix pointers */
 	while( SwigType_ispointer( ( poppedType = SwigType_pop( functionType ) ) ) )
 		Delete( poppedType );
 
-	Printf( stderr, "REGCALL2\n" );
 	/* if this type isn't a callback, leave */
 	if( SwigType_isfunction( poppedType ) == 0 )
 		return;
 
-	Printf( stderr, "REGCALL3\n" );
 	/* restore "pure" callback type */
 	SwigType	*rettype, *returnType;
 	Node		*returnNode;
@@ -602,7 +599,6 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, ParmList
 	/* common function-pointer & callback */
 	SwigType_push( functionType, poppedType );
 
-	Printf( stderr, "REGCALL4\n" );
 	// extract return type: First, we need to delete the pointer
 	rettype= SwigType_del_pointer(Copy(funtype));
 	// then we need to pop the function
@@ -612,7 +608,6 @@ void	FORTH::registerCallback( Node *node, String *name, SwigType *type, ParmList
 	Setattr(returnNode, "type", rettype);
 	// finally, we can look up the Forth type for this node
 	returnType=typeLookup(returnNode);
-	Printf( stderr, "REGCALL5\n" );
 
 	/* callback */
 	if(useCallbacks)
@@ -788,11 +783,12 @@ String *FORTH::ParmList_str_forthargs( ParmList *node, const char *attr_name, St
 				type = SwigType_str( attr, NewStringEmpty() );
 		}
 		
-		Append( out, type );
-
 		node = nextSibling( node );
-		if( node )
-			Append( out, " " );
+		if(Strncmp(type, AL("void"))) {
+			Append( out, type );
+			if( node )
+				Append( out, " " );
+		}
 		Delete( type );	/* shouln't that string only be deleted if SwigType_str was used? */
 	}
 
