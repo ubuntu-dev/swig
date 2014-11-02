@@ -436,10 +436,14 @@ int FORTH::typedefHandler( Node *node )
 		ParmList *parms  = Getattr( node,"parms");
 		SwigType *type = Getattr( node, "type" );
 
-		if(useCallbackTypedef)
-			registerCallback( node, name, type, parms, type );
-		if(useFunptrTypedef)
-			registerFunptr( node, name, type, parms, type );
+		if(Strstr(type, ",va_list)")) {
+		  Swig_warning(WARN_FORTH_TYPEMAP_UNDEF, input_file, line_number, "va_list in arguments '%s', won't register '%s'\n", type, name);
+		} else {
+		  if(useCallbackTypedef)
+		    registerCallback( node, name, type, parms, type );
+		  if(useFunptrTypedef)
+		    registerFunptr( node, name, type, parms, type );
+		}
 	}
 
 	return Language::typedefHandler( node );
@@ -598,10 +602,15 @@ int FORTH::structMemberWrapper( Node *node )
 
 	ParmList *parms  = Getattr(node,"membervariableHandler:parms");
 	SwigType *funtype= Getattr(node,"membervariableHandler:type");
-	if(useCallbackStruct)
-		registerCallback( node, forthName, type, parms, funtype );
-	if(useFunptrStruct)
-		registerStructFunptr( node, forthName, type, parms, funtype );
+
+	if(Strstr(funtype, ",va_list)")) {
+	  Swig_warning(WARN_FORTH_TYPEMAP_UNDEF, input_file, line_number, "va_list in arguments '%s', don't generate a callback, won't register '%s'\n", funtype, forthName);
+	} else {
+	  if(useCallbackStruct)
+	    registerCallback( node, forthName, type, parms, funtype );
+	  if(useFunptrStruct)
+	    registerStructFunptr( node, forthName, type, parms, funtype );
+	}
 
 	/* create/get hash for this struct's fields */
 	Hash *structFields = Getattr( m_structFields, structName );
