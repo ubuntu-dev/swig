@@ -297,7 +297,15 @@
 
 #define WARN_GO_NAME_CONFLICT                 890
 
-/* please leave 890-899 free for Go */
+/* please leave 890-894 free for Go */
+
+#define WARN_FORTH_TYPEMAP_UNDEF              895
+#define WARN_FORTH_CONSTANT_TYPE_UNDEF        896
+#define WARN_FORTH_ADDING_CRITICAL_TYPE       897
+#define WARN_FORTH_VARIABLE_ARGUMENTS         898
+#define WARN_FORTH_NONTEMPLATE_STRUCT         899
+
+/* please leave 895-899 free for Forth */
 
 /* -- User defined warnings (900 - 999) -- */
 

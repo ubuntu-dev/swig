@@ -85,6 +85,7 @@ skip-r		= test -n "@SKIP_R@"
 skip-go		= test -n "@SKIP_GO@"
 skip-d		= test -n "@SKIP_D@"
 skip-javascript	= test -n "@SKIP_JAVASCRIPT@"
+skip-forth	= test -n "@SKIP_FORTH@"
 
 # Additional dependencies for some tests
 skip-gcj        = test -n "@SKIP_GCJ@"
@@ -131,6 +132,7 @@ check-aliveness:
 	@$(skip-go)	  || ./$(TARGET) -go         -help
 	@$(skip-d) 	  || ./$(TARGET) -d          -help
 	@$(skip-javascript) || ./$(TARGET) -javascript -help
+	@$(skip-forth)	  || ./$(TARGET) -forth -help
 
 check-ccache:
 	test -z "$(ENABLE_CCACHE)" || (cd $(CCACHE) && $(MAKE) check)
@@ -160,7 +162,8 @@ check-versions:					\
 	check-cffi-version			\
 	check-r-version				\
 	check-go-version			\
-	check-d-version
+	check-d-version				\
+	check-forth-version
 
 # all examples
 check-%-version :
@@ -200,7 +203,8 @@ check-examples:					\
 	check-r-examples			\
 	check-go-examples			\
 	check-d-examples			\
-	check-javascript-examples
+	check-javascript-examples		\
+	check-forth-examples
 
 tcl_examples       :=$(shell sed '/^\#/d' $(srcdir)/Examples/tcl/check.list)
 perl5_examples     :=$(shell sed '/^\#/d' $(srcdir)/Examples/perl5/check.list)
@@ -226,6 +230,7 @@ r_examples         :=$(shell sed '/^\#/d' $(srcdir)/Examples/r/check.list)
 go_examples        :=$(shell sed '/^\#/d' $(srcdir)/Examples/go/check.list)
 d_examples         :=$(shell sed '/^\#/d' $(srcdir)/Examples/d/check.list)
 javascript_examples:=$(shell sed '/^\#/d' $(srcdir)/Examples/javascript/check.list)
+forth_examples     :=$(shell sed '/^\#/d' $(srcdir)/Examples/forth/check.list)
 
 # all examples
 check-%-examples :
@@ -282,7 +287,8 @@ check-test-suite:				\
 	check-r-test-suite			\
 	check-go-test-suite			\
 	check-d-test-suite			\
-	check-javascript-test-suite
+	check-javascript-test-suite		\
+	check-forth-test-suite
 
 check-%-test-suite:
 	@if test -z "$(skip-$*)"; then					\
@@ -335,7 +341,8 @@ all-test-suite:					\
 	all-r-test-suite			\
 	all-go-test-suite			\
 	all-d-test-suite			\
-	all-javascript-test-suite
+	all-javascript-test-suite		\
+	all-forth-test-suite
 
 all-%-test-suite:
 	@$(MAKE) $(FLAGS) check-$*-test-suite ACTION=all
@@ -364,7 +371,8 @@ broken-test-suite:				\
 	broken-r-test-suite			\
 	broken-go-test-suite			\
 	broken-d-test-suite			\
-	broken-javascript-test-suite
+	broken-javascript-test-suite		\
+	broken-forth-test-suite
 
 broken-%-test-suite:
 	@$(MAKE) $(FLAGS) check-$*-test-suite ACTION=broken
@@ -497,7 +505,7 @@ install-main:
 
 lib-languages = gcj typemaps tcl perl5 python guile java mzscheme ruby php ocaml octave \
 	pike chicken csharp modula3 allegrocl clisp lua cffi uffi r go d javascript javascript/jsc \
-	javascript/v8
+	javascript/v8 forth
 
 lib-modules = std
 
