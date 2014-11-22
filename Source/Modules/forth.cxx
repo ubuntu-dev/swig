@@ -988,8 +988,10 @@ String *FORTH::typeLookup( Node *node, String *structTemplate )
 	else if( ! Strcmp( cTypeName, "..." ) )
 	{
 		containsVariableArguments = true;
-		Swig_warning( WARN_FORTH_VARIABLE_ARGUMENTS, input_file, line_number, "Variable Argument List detected ( \"%s\" ), using \"%s\"\n", cTypeName, defaultType );
-		Printf( resultType, "n" );
+		String *defaultVarArgType = templateInstace( "TYPE_VARARGS" );
+		Swig_warning( WARN_FORTH_VARIABLE_ARGUMENTS, input_file, line_number, "Variable Argument List detected ( \"%s\" ), using \"%s\"\n", cTypeName, defaultVarArgType );
+		Printf( resultType, "%s", defaultVarArgType );
+		Delete( defaultVarArgType );
 	}
 	else
 	{

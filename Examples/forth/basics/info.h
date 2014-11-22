@@ -53,6 +53,7 @@ extern float* getFloatP( void );
 
 extern int getInt( void );
 extern int getIntIndex( int index );
+extern int getIntVarArgs( int index, ... );
 
 extern int getVec4X( VEC4 v4 );
 

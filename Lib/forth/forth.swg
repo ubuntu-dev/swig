@@ -54,6 +54,9 @@
 /* enums are "n" */
 %typemap(forth) enum SWIGTYPE						"n"
 
+/* varargs get a special warning, but are not resolved to the default type */
+#define SWIG_FORTH_TYPE_VARARGS						"a a a"
+
 /* common templates */
 %include "sections.swg"
 %include "structs.swg"
