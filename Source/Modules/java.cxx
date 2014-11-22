@@ -2268,7 +2268,7 @@ public:
       Printf(imcall, "swigCPtr");
 
       String *this_type = Copy(getClassType());
-      String *name = NewString("self");
+      String *name = NewString("jself");
       String *qualifier = Getattr(n, "qualifier");
       if (qualifier)
 	SwigType_push(this_type, qualifier);
@@ -3116,44 +3116,6 @@ public:
   }
 
   /* -----------------------------------------------------------------------------
-   * makeParameterName()
-   *
-   * Inputs: 
-   *   n - Node
-   *   p - parameter node
-   *   arg_num - parameter argument number
-   *   setter  - set this flag when wrapping variables
-   * Return:
-   *   arg - a unique parameter name
-   * ----------------------------------------------------------------------------- */
-
-  String *makeParameterName(Node *n, Parm *p, int arg_num, bool setter) {
-
-    String *arg = 0;
-    String *pn = Getattr(p, "name");
-
-    // Use C parameter name unless it is a duplicate or an empty parameter name
-    int count = 0;
-    ParmList *plist = Getattr(n, "parms");
-    while (plist) {
-      if ((Cmp(pn, Getattr(plist, "name")) == 0))
-        count++;
-      plist = nextSibling(plist);
-    }
-    String *wrn = pn ? Swig_name_warning(p, 0, pn, 0) : 0;
-    arg = (!pn || (count > 1) || wrn) ? NewStringf("arg%d", arg_num) : Copy(pn);
-
-    if (setter && Cmp(arg, "self") != 0) {
-      // Note that for setters the parameter name is always set but sometimes includes C++ 
-      // scope resolution, so we need to strip off the scope resolution to make a valid name.
-      Delete(arg);
-      arg = NewString("value");	//Swig_scopename_last(pn);
-    }
-
-    return arg;
-  }
-
-  /* -----------------------------------------------------------------------------
    * emitTypeWrapperClass()
    * ----------------------------------------------------------------------------- */
 
@@ -3772,7 +3734,7 @@ public:
     /* Create the intermediate class wrapper */
     tm = Swig_typemap_lookup("jtype", n, "", 0);
     if (tm) {
-      Printf(callback_def, "  public static %s %s(%s self", tm, imclass_dmethod, qualified_classname);
+      Printf(callback_def, "  public static %s %s(%s jself", tm, imclass_dmethod, qualified_classname);
     } else {
       Swig_warning(WARN_JAVA_TYPEMAP_JTYPE_UNDEF, input_file, line_number, "No jtype typemap defined for %s\n", SwigType_str(returntype, 0));
     }
@@ -3889,7 +3851,7 @@ public:
       Printf(w->code, "if (swigjobj && jenv->IsSameObject(swigjobj, NULL) == JNI_FALSE) {\n");
     }
 
-    /* Start the Java field descriptor for the intermediate class's upcall (insert self object) */
+    /* Start the Java field descriptor for the intermediate class's upcall (insert jself object) */
     Parm *tp = NewParmNode(c_classname, n);
     String *jdesc;
 
@@ -4100,7 +4062,7 @@ public:
 
     /* Emit the intermediate class's upcall to the actual class */
 
-    String *upcall = NewStringf("self.%s(%s)", symname, imcall_args);
+    String *upcall = NewStringf("jself.%s(%s)", symname, imcall_args);
 
     // Handle exception classes specified in the "except" feature's "throws" attribute
     addThrows(n, "feature:except", n);
@@ -4598,6 +4560,7 @@ public:
   /*----------------------------------------------------------------------
    * extraDirectorProtectedCPPMethodsRequired()
    *--------------------------------------------------------------------*/
+
   bool extraDirectorProtectedCPPMethodsRequired() const {
     return false;
   }
@@ -4622,6 +4585,10 @@ public:
     Setattr(n, "director:decl", declaration);
     Setattr(n, "director:ctor", class_ctor);
   }
+
+  /*----------------------------------------------------------------------
+   * nestedClassesSupport()
+   *--------------------------------------------------------------------*/
 
   NestedClassSupport nestedClassesSupport() const {
     return NCS_Full;

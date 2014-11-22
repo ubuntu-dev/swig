@@ -297,6 +297,9 @@ protected:
   /* Return true if the current method is part of a smart-pointer */
   int is_smart_pointer() const;
 
+  /* Return the name to use for the given parameter. */
+  virtual String *makeParameterName(Node *n, Parm *p, int arg_num, bool setter = false) const;
+
   /* Some language modules require additional wrappers for virtual methods not declared in sub-classes */
   virtual bool extraDirectorProtectedCPPMethodsRequired() const;
 
@@ -314,6 +317,9 @@ public:
     the nested classes will be moved to the global scope (like implicit global %feature "flatnested").
   */
   virtual NestedClassSupport nestedClassesSupport() const;
+
+  /* Returns true if the target language supports key word arguments (kwargs) */
+  virtual bool kwargsSupport() const;
 
 protected:
   /* Identifies if a protected members that are generated when the allprotected option is used.

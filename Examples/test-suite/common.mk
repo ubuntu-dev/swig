@@ -172,6 +172,7 @@ CPP_TEST_CASES += \
 	director_abstract \
 	director_alternating \
 	director_basic \
+	director_property \
 	director_binary_string \
 	director_classes \
 	director_classic \
@@ -248,6 +249,7 @@ CPP_TEST_CASES += \
 	insert_directive \
 	keyword_rename \
 	kind \
+	kwargs_feature \
 	langobj \
 	li_attribute \
 	li_attribute_template \
