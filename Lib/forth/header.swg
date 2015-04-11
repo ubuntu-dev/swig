@@ -58,7 +58,7 @@ void swigStringConstant( char* constant, char *name )
 {
 	char c;
 	printf( ": %s s\\\" ", name );
-	while( c = *constant++ )
+	while(( c = *constant++ ))
 	{
 		switch(c)
 		{
@@ -81,21 +81,21 @@ void swigStringConstant( char* constant, char *name )
 /* structs */
 void swigStructField( char *name, size_t offset, size_t size )
 {
-	printf( "\tdrop %d %d +field %s\n", offset, size, name );
+	printf( "\tdrop %zu %zu +field %s\n", offset, size, name );
 }
 
 /* functions */
 void swigFunction( char* gforth, char *swiftForth, char *vfx, char *stackComment )
 {
 	if( swigTargetSystem == GFORTH )
-		printf( gforth );
+		printf( "%s", gforth );
 	else if( swigTargetSystem == SWIFTFORTH )
-		printf( swiftForth );
+		printf( "%s", swiftForth );
 	else if( swigTargetSystem == VFX )
-		printf( vfx );
+		printf( "%s", vfx );
 
 	if( swigPrintStackComments )
-		printf( stackComment );
+		printf( "%s", stackComment );
 
 	printf( "\n" );
 }
