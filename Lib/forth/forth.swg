@@ -50,7 +50,6 @@
    all pointers are mapped to "a" (see documentation 10.3.3)	
  */
 %typemap(forth) const char *, const char[ANY], const char[]		"s"
-%typemap(forth) const unsigned char *, const unsigned char[ANY], const unsigned char[]             "s"
 %typemap(forth) const wchar_t *, const wchar_t[ANY], const wchar_t[]    "ws"
 %typemap(forth) SWIGTYPE *						"a"
 %typemap(forth) SWIGTYPE []						"a"
