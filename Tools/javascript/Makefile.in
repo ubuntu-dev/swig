@@ -14,7 +14,7 @@
 all: javascript
 
 CC         = @CC@
-# HACK: under OSX a g++ compiled interpreter is seg-faulting when loading module libraries
+# HACK: under Mac OS X a g++ compiled interpreter is seg-faulting when loading module libraries
 # with 'c++' it works... probably some missing flags?
 JSCXX      = @JSINTERPRETERCXX@
 CPPFLAGS   = @BOOST_CPPFLAGS@
@@ -26,10 +26,6 @@ LINKFLAGS = @JSINTERPRETERLINKFLAGS@
 ROOT_DIR = @ROOT_DIR@
 JSINCLUDES = @JSCOREINC@ @JSV8INC@
 JSDYNAMICLINKING = @JSCOREDYNAMICLINKING@ @JSV8DYNAMICLINKING@
-JSLIBRARYPREFIX = @JSLIBRARYPREFIX@
-JSSO =@JSSO@
-JSLDSHARED = @JSLDSHARED@
-JSCXXSHARED = @JSCXXSHARED@
 JSV8ENABLED = @JSV8ENABLED@
 JSCENABLED = @JSCENABLED@
 

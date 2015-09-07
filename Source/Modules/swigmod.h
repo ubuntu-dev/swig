@@ -18,12 +18,6 @@
 #include "preprocessor.h"
 #include "swigwarn.h"
 
-#if !defined(HAVE_BOOL)
-typedef int bool;
-#define true ((bool)1)
-#define false ((bool)0)
-#endif
-
 #define NOT_VIRTUAL     0
 #define PLAIN_VIRTUAL   1
 #define PURE_VIRTUAL    2
@@ -290,6 +284,9 @@ protected:
 
   /* Return the current class prefix */
   String *getClassPrefix() const;
+
+  /* Return the current enum class prefix */
+  String *getEnumClassPrefix() const;
 
   /* Fully qualified type name to use */
   String *getClassType() const;

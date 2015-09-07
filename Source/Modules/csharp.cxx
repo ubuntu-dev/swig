@@ -34,6 +34,7 @@ class CSHARP:public Language {
   File *f_init;
   File *f_directors;
   File *f_directors_h;
+  File *f_single_out;
   List *filenames_list;
 
   bool proxy_flag;		// Flag for generating proxy classes
@@ -78,6 +79,7 @@ class CSHARP:public Language {
   String *director_method_types;	// Director method types
   String *director_connect_parms;	// Director delegates parameter list for director connect call
   String *destructor_call;	//C++ destructor call if any
+  String *output_file;		// File name for single file mode. If set all generated code will be written to this file
 
   // Director method stuff:
   List *dmethods_seq;
@@ -108,6 +110,7 @@ public:
       f_init(NULL),
       f_directors(NULL),
       f_directors_h(NULL),
+      f_single_out(NULL),
       filenames_list(NULL),
       proxy_flag(true),
       native_function_flag(false),
@@ -150,6 +153,7 @@ public:
       director_method_types(NULL),
       director_connect_parms(NULL),
       destructor_call(NULL),
+      output_file(NULL),
       dmethods_seq(NULL),
       dmethods_table(NULL),
       n_dmethods(0),
@@ -244,6 +248,16 @@ public:
 	} else if (strcmp(argv[i], "-oldvarnames") == 0) {
 	  Swig_mark_arg(i);
 	  old_variable_names = true;
+	} else if (strcmp(argv[i], "-outfile") == 0) {
+	  if (argv[i + 1]) {
+	    output_file = NewString("");
+	    Printf(output_file, argv[i + 1]);
+	    Swig_mark_arg(i);
+	    Swig_mark_arg(i + 1);
+	    i++;
+	  } else {
+	    Swig_arg_error();
+	  }
 	} else if (strcmp(argv[i], "-help") == 0) {
 	  Printf(stdout, "%s\n", usage);
 	}
@@ -418,22 +432,12 @@ public:
 
     if (directorsEnabled()) {
       // Insert director runtime into the f_runtime file (make it occur before %header section)
+      Swig_insert_file("director_common.swg", f_runtime);
       Swig_insert_file("director.swg", f_runtime);
     }
     // Generate the intermediary class
     {
-      String *filen = NewStringf("%s%s.cs", SWIG_output_directory(), imclass_name);
-      File *f_im = NewFile(filen, "w", SWIG_output_files());
-      if (!f_im) {
-	FileErrorDisplay(filen);
-	SWIG_exit(EXIT_FAILURE);
-      }
-      Append(filenames_list, Copy(filen));
-      Delete(filen);
-      filen = NULL;
-
-      // Start writing out the intermediary class file
-      emitBanner(f_im);
+      File *f_im = getOutputFile(SWIG_output_directory(), imclass_name);
 
       addOpenNamespace(0, f_im);
 
@@ -461,23 +465,14 @@ public:
       Printf(f_im, "}\n");
       addCloseNamespace(0, f_im);
 
-      Delete(f_im);
+      if (f_im != f_single_out)
+	Delete(f_im);
+      f_im = NULL;
     }
 
     // Generate the C# module class
     {
-      String *filen = NewStringf("%s%s.cs", SWIG_output_directory(), module_class_name);
-      File *f_module = NewFile(filen, "w", SWIG_output_files());
-      if (!f_module) {
-	FileErrorDisplay(filen);
-	SWIG_exit(EXIT_FAILURE);
-      }
-      Append(filenames_list, Copy(filen));
-      Delete(filen);
-      filen = NULL;
-
-      // Start writing out the module class file
-      emitBanner(f_module);
+      File *f_module = getOutputFile(SWIG_output_directory(), module_class_name);
 
       addOpenNamespace(0, f_module);
 
@@ -513,7 +508,9 @@ public:
       Printf(f_module, "}\n");
       addCloseNamespace(0, f_module);
 
-      Delete(f_module);
+      if (f_module != f_single_out)
+	Delete(f_module);
+      f_module = NULL;
     }
 
     if (upcasts_code)
@@ -612,6 +609,12 @@ public:
       f_directors_h = NULL;
     }
 
+    if (f_single_out) {
+      Dump(f_single_out, f_begin);
+      Delete(f_single_out);
+      f_single_out = NULL;
+    }
+
     Dump(f_wrappers, f_begin);
     Wrapper_pretty_print(f_init, f_begin);
     Delete(f_header);
@@ -632,6 +635,50 @@ public:
     Printf(f, "//\n");
     Swig_banner_target_lang(f, "//");
     Printf(f, "//------------------------------------------------------------------------------\n\n");
+  }
+
+  /* -----------------------------------------------------------------------------
+   * getOutputFile()
+   *
+   * Prepares a File object by creating the file in the file system and
+   * writing the banner for auto-generated files to it (emitBanner).
+   * If '-outfile' is provided (single file mode) the supplied parameters will
+   * be ignored and the returned file will always be:
+   *  <outdir>/<outfile>
+   * Otherwise the file will be:
+   *  <dir>/<name>.cs
+   * ----------------------------------------------------------------------------- */
+
+  File *getOutputFile(const String *dir, const String *name) {
+    if (output_file) {
+      if (!f_single_out) {
+	String *filen = NewStringf("%s%s", SWIG_output_directory(), output_file);
+	f_single_out = NewFile(filen, "w", SWIG_output_files());
+	if (!f_single_out) {
+	  FileErrorDisplay(filen);
+	  SWIG_exit(EXIT_FAILURE);
+	}
+	Append(filenames_list, Copy(filen));
+	Delete(filen);
+	filen = NULL;
+
+	emitBanner(f_single_out);
+      }
+      return f_single_out;
+    } else {
+      String *filen = NewStringf("%s%s.cs", dir, name);
+      File *f = NewFile(filen, "w", SWIG_output_files());
+      if (!f) {
+	FileErrorDisplay(f);
+	SWIG_exit(EXIT_FAILURE);
+      }
+      Append(filenames_list, Copy(filen));
+      Delete(filen);
+      filen = NULL;
+
+      emitBanner(f);
+      return f;
+    }
   }
 
   /*-----------------------------------------------------------------------
@@ -719,7 +766,7 @@ public:
     String *overloaded_name = getOverloadedName(n);
 
     if (!Getattr(n, "sym:overloaded")) {
-      if (!addSymbol(Getattr(n, "sym:name"), n, imclass_name))
+      if (!addSymbol(symname, n, imclass_name))
 	return SWIG_ERROR;
     }
 
@@ -914,20 +961,9 @@ public:
     String *null_attribute = 0;
     // Now write code to make the function call
     if (!native_function_flag) {
-      if (Cmp(nodeType(n), "constant") == 0) {
-        // Wrapping a constant hack
-        Swig_save("functionWrapper", n, "wrap:action", NIL);
-
-        // below based on Swig_VargetToFunction()
-        SwigType *ty = Swig_wrapped_var_type(Getattr(n, "type"), use_naturalvar_mode(n));
-        Setattr(n, "wrap:action", NewStringf("%s = (%s)(%s);", Swig_cresult_name(), SwigType_lstr(ty, 0), Getattr(n, "value")));
-      }
 
       Swig_director_emit_dynamic_cast(n, f);
       String *actioncode = emit_action(n);
-
-      if (Cmp(nodeType(n), "constant") == 0)
-        Swig_restore(n);
 
       /* Return value if necessary  */
       if ((tm = Swig_typemap_lookup_out("out", n, Swig_cresult_name(), f, actioncode))) {
@@ -1090,15 +1126,13 @@ public:
     return ret;
   }
   
-  String *getCurrentScopeName(String *nspace)
-  {
+  String *getCurrentScopeName(String *nspace) {
     String *scope = 0;
     if (nspace || getCurrentClass()) {
       scope = NewString("");
       if (nspace)
 	Printf(scope, "%s", nspace);
-      if (Node* cls = getCurrentClass())
-      {
+      if (Node *cls = getCurrentClass()) {
 	if (Node *outer = Getattr(cls, "nested:outer")) {
 	  String *outerClassesPrefix = Copy(Getattr(outer, "sym:name"));
 	  for (outer = Getattr(outer, "nested:outer"); outer != 0; outer = Getattr(outer, "nested:outer")) {
@@ -1210,18 +1244,7 @@ public:
 	} else {
 	  // Global enums are defined in their own file
 	  String *output_directory = outputDirectory(nspace);
-	  String *filen = NewStringf("%s%s.cs", output_directory, symname);
-	  File *f_enum = NewFile(filen, "w", SWIG_output_files());
-	  if (!f_enum) {
-	    FileErrorDisplay(filen);
-	    SWIG_exit(EXIT_FAILURE);
-	  }
-	  Append(filenames_list, Copy(filen));
-	  Delete(filen);
-	  filen = NULL;
-
-	  // Start writing out the enum file
-	  emitBanner(f_enum);
+	  File *f_enum = getOutputFile(output_directory, symname);
 
 	  addOpenNamespace(nspace, f_enum);
 
@@ -1229,7 +1252,9 @@ public:
 		 "\n", enum_code, "\n", NIL);
 
 	  addCloseNamespace(nspace, f_enum);
-	  Delete(f_enum);
+	  if (f_enum != f_single_out)
+	    Delete(f_enum);
+	  f_enum = NULL;
 	  Delete(output_directory);
 	}
       } else {
@@ -1268,6 +1293,7 @@ public:
     int unnamedinstance = GetFlag(parent, "unnamedinstance");
     String *parent_name = Getattr(parent, "name");
     String *nspace = getNSpace();
+    String *newsymname = 0;
     String *tmpValue;
 
     // Strange hack from parent method
@@ -1292,14 +1318,20 @@ public:
     {
       EnumFeature enum_feature = decodeEnumFeature(parent);
 
+      if ((enum_feature == SimpleEnum) && GetFlag(parent, "scopedenum")) {
+	newsymname = Swig_name_member(0, Getattr(parent, "sym:name"), symname);
+	symname = newsymname;
+      }
+
       // Add to language symbol table
       String *scope = 0;
       if (unnamedinstance || !parent_name || enum_feature == SimpleEnum) {
-	if (proxy_class_name) {
+	String *enumClassPrefix = getEnumClassPrefix();
+	if (enumClassPrefix) {
 	  scope = NewString("");
 	  if (nspace)
 	    Printf(scope, "%s.", nspace);
-	  Printf(scope, "%s", proxy_class_name);
+	  Printf(scope, "%s", enumClassPrefix);
 	} else {
 	  scope = Copy(module_class_name);
 	}
@@ -1310,7 +1342,7 @@ public:
 	else
 	  Printf(scope, ".%s", Getattr(parent, "sym:name"));
       }
-      if (!addSymbol(name, n, scope))
+      if (!addSymbol(symname, n, scope))
 	return SWIG_ERROR;
 
       const String *csattributes = Getattr(n, "feature:cs:attributes");
@@ -1382,6 +1414,7 @@ public:
       Delete(scope);
     }
 
+    Delete(newsymname);
     Delete(tmpValue);
     Swig_restore(n);
     return SWIG_OK;
@@ -1646,7 +1679,7 @@ public:
             String *proxyclassname = Getattr(n, "classtypeobj");
             String *baseclassname = Getattr(base.item, "name");
             Swig_warning(WARN_CSHARP_MULTIPLE_INHERITANCE, Getfile(n), Getline(n),
-                         "Warning for %s proxy: Base %s ignored. Multiple inheritance is not supported in Java.\n", SwigType_namestr(proxyclassname), SwigType_namestr(baseclassname));
+                         "Warning for %s proxy: Base %s ignored. Multiple inheritance is not supported in C#.\n", SwigType_namestr(proxyclassname), SwigType_namestr(baseclassname));
             base = Next(base);
           }
         }
@@ -1921,21 +1954,9 @@ public:
 	}
       }
 
-      // Each outer proxy class goes into a separate file
       if (!has_outerclass) {
 	String *output_directory = outputDirectory(nspace);
-	String *filen = NewStringf("%s%s.cs", output_directory, proxy_class_name);
-	f_proxy = NewFile(filen, "w", SWIG_output_files());
-	if (!f_proxy) {
-	  FileErrorDisplay(filen);
-	  SWIG_exit(EXIT_FAILURE);
-	}
-	Append(filenames_list, Copy(filen));
-	Delete(filen);
-	filen = NULL;
-
-	// Start writing out the proxy class file
-	emitBanner(f_proxy);
+	f_proxy = getOutputFile(output_directory, proxy_class_name);
 
 	addOpenNamespace(nspace, f_proxy);
       }
@@ -1995,7 +2016,8 @@ public:
       if (!has_outerclass) {
 	Printf(f_proxy, "}\n");
 	addCloseNamespace(nspace, f_proxy);
-	Delete(f_proxy);
+	if (f_proxy != f_single_out)
+	  Delete(f_proxy);
 	f_proxy = NULL;
       } else {
 	for (int i = 0; i < nesting_depth; ++i)
@@ -2008,7 +2030,7 @@ public:
          good place to put this code, since Abstract Base Classes (ABCs) can and should have 
          downcasts, making the constructorHandler() a bad place (because ABCs don't get to
          have constructors emitted.) */
-      if (GetFlag(n, "feature:javadowncast")) {
+      if (GetFlag(n, "feature:csdowncast")) {
 	String *downcast_method = Swig_name_member(getNSpace(), proxy_class_name, "SWIGDowncast");
 	String *wname = Swig_name_wrapper(downcast_method);
 
@@ -3055,6 +3077,16 @@ public:
 	// Use the C syntax to make a true C# constant and hope that it compiles as C# code
 	value = Getattr(n, "enumvalue") ? Copy(Getattr(n, "enumvalue")) : Copy(Getattr(n, "enumvalueex"));
       } else {
+	String *newsymname = 0;
+	if (!getCurrentClass() || !proxy_flag) {
+	  String *enumClassPrefix = getEnumClassPrefix();
+	  if (enumClassPrefix) {
+	    // A global scoped enum
+	    newsymname = Swig_name_member(0, enumClassPrefix, symname);
+	    symname = newsymname;
+	  }
+	}
+
 	// Get the enumvalue from a PINVOKE call
 	if (!getCurrentClass() || !cparse_cplusplus || !proxy_flag) {
 	  // Strange hack to change the name
@@ -3063,7 +3095,7 @@ public:
 	  value = NewStringf("%s.%s()", full_imclass_name ? full_imclass_name : imclass_name, Swig_name_get(getNSpace(), symname));
 	} else {
 	  memberconstantHandler(n);
-	  value = NewStringf("%s.%s()", full_imclass_name ? full_imclass_name : imclass_name, Swig_name_get(getNSpace(), Swig_name_member(0, proxy_class_name, symname)));
+	  value = NewStringf("%s.%s()", full_imclass_name ? full_imclass_name : imclass_name, Swig_name_get(getNSpace(), Swig_name_member(0, getEnumClassPrefix(), symname)));
 	}
       }
     }
@@ -3210,18 +3242,7 @@ public:
     Setline(n, line_number);
 
     String *swigtype = NewString("");
-    String *filen = NewStringf("%s%s.cs", SWIG_output_directory(), classname);
-    File *f_swigtype = NewFile(filen, "w", SWIG_output_files());
-    if (!f_swigtype) {
-      FileErrorDisplay(filen);
-      SWIG_exit(EXIT_FAILURE);
-    }
-    Append(filenames_list, Copy(filen));
-    Delete(filen);
-    filen = NULL;
-
-    // Start writing out the type wrapper class file
-    emitBanner(f_swigtype);
+    File *f_swigtype = getOutputFile(SWIG_output_directory(), classname);
 
     addOpenNamespace(0, f_swigtype);
 
@@ -3256,8 +3277,9 @@ public:
     Printv(f_swigtype, swigtype, NIL);
 
     addCloseNamespace(0, f_swigtype);
-
-    Delete(f_swigtype);
+    if (f_swigtype != f_single_out)
+      Delete(f_swigtype);
+    f_swigtype = NULL;
     Delete(swigtype);
     Delete(n);
   }
@@ -3353,7 +3375,7 @@ public:
   /* -----------------------------------------------------------------------------
    * outputDirectory()
    *
-   * Return the directory to use for generating Java classes/enums and create the
+   * Return the directory to use for generating C# classes/enums and create the
    * subdirectory (does not create if language specific outdir does not exist).
    * ----------------------------------------------------------------------------- */
 
@@ -3493,7 +3515,7 @@ public:
    * classDirectorMethod()
    *
    * Emit a virtual director method to pass a method call on to the 
-   * underlying Java object.
+   * underlying C# object.
    *
    * --------------------------------------------------------------- */
 
@@ -3654,7 +3676,7 @@ public:
     if (!ignored_method)
       Printf(w->code, "} else {\n");
 
-    /* Go through argument list, convert from native to Java */
+    /* Go through argument list, convert from native to C# */
     for (i = 0, p = l; p; ++i) {
       /* Is this superfluous? */
       while (checkAttribute(p, "tmap:directorin:numinputs", "0")) {
@@ -4279,4 +4301,5 @@ C# Options (available with -csharp)\n\
      -noproxy        - Generate the low-level functional interface instead\n\
                        of proxy classes\n\
      -oldvarnames    - Old intermediary method names for variable wrappers\n\
+     -outfile <file> - Write all C# into a single <file> located in the output directory\n\
 \n";

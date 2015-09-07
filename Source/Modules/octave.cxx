@@ -19,8 +19,10 @@ static String *op_prefix   = 0;
 
 static const char *usage = "\
 Octave Options (available with -octave)\n\
+     -cppcast        - Enable C++ casting operators (default)\n\
      -globals <name> - Set <name> used to access C global variables [default: 'cvar']\n\
                        Use '.' to load C global variables into module namespace\n\
+     -nocppcast      - Disable C++ casting operators\n\
      -opprefix <str> - Prefix <str> for global operator functions [default: 'op_']\n\
 \n";
 
@@ -90,6 +92,8 @@ public:
   }
 
   virtual void main(int argc, char *argv[]) {
+    int cppcast = 1;
+      
     for (int i = 1; i < argc; i++) {
       if (argv[i]) {
         if (strcmp(argv[i], "-help") == 0) {
@@ -112,6 +116,12 @@ public:
           } else {
             Swig_arg_error();
           }
+        } else if (strcmp(argv[i], "-cppcast") == 0) {
+ 	  cppcast = 1;
+ 	  Swig_mark_arg(i);
+ 	} else if (strcmp(argv[i], "-nocppcast") == 0) {
+ 	  cppcast = 0;
+ 	  Swig_mark_arg(i);
         }
       }
     }
@@ -120,6 +130,8 @@ public:
       global_name = NewString("cvar");
     if (!op_prefix)
       op_prefix = NewString("op_");
+    if(cppcast)
+      Preprocessor_define((DOH *) "SWIG_CPLUSPLUS_CAST", 0);
 
     SWIG_library_directory("octave");
     Preprocessor_define("SWIGOCTAVE 1", 0);
@@ -216,8 +228,10 @@ public:
     if (Len(docs))
       emit_doc_texinfo();
 
-    if (directorsEnabled())
+    if (directorsEnabled()) {
+      Swig_insert_file("director_common.swg", f_runtime);
       Swig_insert_file("director.swg", f_runtime);
+    }
 
     Printf(f_init, "return true;\n}\n");
     Printf(s_global_tab, "{0,0,0,0,0}\n};\n");
@@ -952,7 +966,26 @@ public:
     SwigType *t = Copy(Getattr(n, "name"));
     SwigType_add_pointer(t);
 
+    String *smartptr = Getattr(n, "feature:smartptr");	// Replace storing a pointer to underlying class with a smart pointer (intended for use with non-intrusive smart pointers)
+    SwigType *smart = 0;
+    if (smartptr) {
+      SwigType *cpt = Swig_cparse_type(smartptr);
+      if (cpt) {
+	smart = SwigType_typedef_resolve_all(cpt);
+	Delete(cpt);
+      } else {
+	// TODO: report line number of where the feature comes from
+	Swig_error(Getfile(n), Getline(n), "Invalid type (%s) in 'smartptr' feature for class %s.\n", smartptr, class_name);
+      }
+    }
     String *wrap_class = NewStringf("&_wrap_class_%s", class_name);
+    if(smart){
+      SwigType_add_pointer(smart);
+      SwigType_remember_clientdata(smart, wrap_class);
+    }
+    Delete(smart);
+    Delete(smartptr);
+    //String *wrap_class = NewStringf("&_wrap_class_%s", class_name);
     SwigType_remember_clientdata(t, wrap_class);
 
     int use_director = Swig_directorclass(n);
@@ -1354,7 +1387,7 @@ public:
                SwigType_namestr(name));
       }
     } else {
-      // attach typemaps to arguments (C/C++ -> Python)
+      // attach typemaps to arguments (C/C++ -> Octave)
       String *parse_args = NewString("");
 
       Swig_director_parms_fixup(l);
