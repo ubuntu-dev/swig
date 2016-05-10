@@ -1635,9 +1635,7 @@ int ALLEGROCL::top(Node *n) {
 
   Swig_banner(f_begin);
 
-  Printf(f_runtime, "\n");
-  Printf(f_runtime, "#define SWIGALLEGROCL\n");
-  Printf(f_runtime, "\n");
+  Printf(f_runtime, "\n\n#ifndef SWIGALLEGROCL\n#define SWIGALLEGROCL\n#endif\n\n");
 
   Swig_banner_target_lang(f_cl, ";;");
 
@@ -3167,6 +3165,9 @@ int ALLEGROCL::enumDeclaration(Node *n) {
 #ifdef ALLEGROCL_DEBUG
   Printf(stderr, "enumDeclaration %s\n", Getattr(n, "name"));
 #endif
+
+  if (getCurrentClass() && (cplus_mode != PUBLIC))
+    return SWIG_NOWRAP;
 
   if (Getattr(n, "sym:name")) {
     add_defined_foreign_type(n);

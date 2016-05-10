@@ -218,6 +218,7 @@ CPP_TEST_CASES += \
 	evil_diamond \
 	evil_diamond_ns \
 	evil_diamond_prop \
+	exception_classname \
 	exception_order \
 	extend \
 	extend_constructor_destructor \
@@ -258,13 +259,14 @@ CPP_TEST_CASES += \
 	langobj \
 	li_attribute \
 	li_attribute_template \
+	li_boost_array \
 	li_boost_shared_ptr \
 	li_boost_shared_ptr_bits \
 	li_boost_shared_ptr_template \
 	li_boost_shared_ptr_attribute \
-	li_carrays \
-	li_cdata \
-	li_cpointer \
+	li_carrays_cpp \
+	li_cdata_cpp \
+	li_cpointer_cpp \
 	li_std_auto_ptr \
 	li_stdint \
 	li_swigtype_inout \
@@ -280,6 +282,10 @@ CPP_TEST_CASES += \
 	minherit2 \
 	mixed_types \
 	multiple_inheritance \
+	multiple_inheritance_abstract \
+	multiple_inheritance_interfaces \
+	multiple_inheritance_nspace \
+	multiple_inheritance_shared_ptr \
 	name_cxx \
 	name_warnings \
 	namespace_class \
@@ -339,6 +345,7 @@ CPP_TEST_CASES += \
 	rename2 \
 	rename3 \
 	rename4 \
+	rename_rstrip_encoder \
 	rename_scope \
 	rename_simple \
 	rename_strip_encoder \
@@ -377,6 +384,7 @@ CPP_TEST_CASES += \
 	static_array_member \
 	static_const_member \
 	static_const_member_2 \
+	string_constants \
 	struct_initialization_cpp \
 	struct_value \
 	symbol_clash \
@@ -393,6 +401,8 @@ CPP_TEST_CASES += \
 	template_default \
 	template_default2 \
 	template_default_arg \
+	template_default_arg_overloaded \
+	template_default_arg_overloaded_extend \
 	template_default_arg_virtual_destructor \
 	template_default_class_parms \
 	template_default_class_parms_typedef \
@@ -468,7 +478,7 @@ CPP_TEST_CASES += \
 	typedef_reference \
 	typedef_scope \
 	typedef_sizet \
-	typedef_struct \
+	typedef_struct_cpp \
 	typedef_typedef \
 	typemap_arrays \
 	typemap_array_qualifiers \
@@ -530,6 +540,7 @@ CPP11_TEST_CASES = \
 	cpp11_initializer_list \
 	cpp11_initializer_list_extend \
 	cpp11_lambda_functions \
+	cpp11_li_std_array \
 	cpp11_noexcept \
 	cpp11_null_pointer_constant \
 	cpp11_raw_string_literals \
@@ -574,7 +585,6 @@ CPP_STD_TEST_CASES += \
 	li_std_vector \
 	li_std_vector_enum \
 	li_std_vector_member_var\
-	naturalvar \
 	smart_pointer_inherit \
 	template_typedef_fnc \
 	template_type_namespace \
@@ -599,7 +609,7 @@ C_TEST_CASES += \
 	char_constant \
 	const_const \
 	constant_expr \
-	empty \
+	empty_c \
 	enums \
 	enum_forward \
 	enum_macro \
@@ -612,7 +622,7 @@ C_TEST_CASES += \
 	inctest \
 	infinity \
 	integers \
-	keyword_rename \
+	keyword_rename_c \
 	lextype \
 	li_carrays \
 	li_cdata \
@@ -627,8 +637,8 @@ C_TEST_CASES += \
 	nested_extend_c \
 	nested_structs \
 	newobject2 \
-	overload_extend \
-	overload_extendc \
+	overload_extend_c \
+	overload_extend2 \
 	preproc \
 	preproc_constants_c \
 	preproc_defined \
@@ -661,6 +671,11 @@ MULTI_CPP_TEST_CASES += \
 wallkw.cpptest: SWIGOPT += -Wallkw
 preproc_include.ctest: SWIGOPT += -includeall
 
+# Allow modules to define temporarily failing tests.
+C_TEST_CASES := $(filter-out $(FAILING_C_TESTS),$(C_TEST_CASES))
+CPP_TEST_CASES := $(filter-out $(FAILING_CPP_TESTS),$(CPP_TEST_CASES))
+MULTI_CPP_TEST_CASES := $(filter-out $(FAILING_MULTI_CPP_TESTS),$(MULTI_CPP_TEST_CASES))
+
 
 NOT_BROKEN_TEST_CASES =	$(CPP_TEST_CASES:=.cpptest) \
 			$(C_TEST_CASES:=.ctest) \
@@ -691,6 +706,7 @@ all: $(NOT_BROKEN_TEST_CASES) $(BROKEN_TEST_CASES)
 broken: $(BROKEN_TEST_CASES)
 
 check: $(NOT_BROKEN_TEST_CASES)
+	@echo $(words $^) $(LANGUAGE) tests passed
 
 check-c: $(C_TEST_CASES:=.ctest)
 
@@ -698,6 +714,13 @@ check-cpp: $(CPP_TEST_CASES:=.cpptest)
 
 check-cpp11: $(CPP11_TEST_CASES:=.cpptest)
 
+check-failing-test = \
+	$(MAKE) -s $1.$2 >/dev/null 2>/dev/null && echo "Failing test $1 passed."
+
+check-failing:
+	+-$(foreach t,$(FAILING_C_TESTS),$(call check-failing-test,$t,ctest);)
+	+-$(foreach t,$(FAILING_CPP_TESTS),$(call check-failing-test,$t,cpptest);)
+	+-$(foreach t,$(FAILING_MULTI_CPP_TESTS),$(call check-failing-test,$t,multicpptest);)
 endif
 
 # partialcheck target runs SWIG only, ie no compilation or running of tests (for a subset of languages)

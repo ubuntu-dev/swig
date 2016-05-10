@@ -13,11 +13,14 @@
  * some point.  Beware.
  * ----------------------------------------------------------------------------- */
 
-/*
-Removed until we know more about the min versions of Bison and Yacc required for this
-to work, see Byacc man page: http://invisible-island.net/byacc/manpage/yacc.html
+/* There are 6 known shift-reduce conflicts in this file, fail compilation if any
+   more are introduced.
+
+   Please don't increase the number of the conflicts if at all possible. And if
+   you really have no choice but to do it, make sure you clearly document each
+   new conflict in this file.
+ */
 %expect 6
-*/
 
 %{
 #define yylex yylex
@@ -140,6 +143,11 @@ static Node *copy_node(Node *n) {
     }
     if (strcmp(ckey,"nested:outer") == 0) { /* don't copy outer classes links, they will be updated later */
       Setattr(nn, key, k.item);
+      continue;
+    }
+    /* defaultargs will be patched back in later in update_defaultargs() */
+    if (strcmp(ckey,"defaultargs") == 0) {
+      Setattr(nn, "needs_defaultargs", "1");
       continue;
     }
     /* Looks okay.  Just copy the data using Copy */
@@ -649,6 +657,32 @@ static void add_symbols_copy(Node *n) {
       }
     }
     n = nextSibling(n);
+  }
+}
+
+/* Add in the "defaultargs" attribute for functions in instantiated templates.
+ * n should be any instantiated template (class or start of linked list of functions). */
+static void update_defaultargs(Node *n) {
+  if (n) {
+    Node *firstdefaultargs = n;
+    update_defaultargs(firstChild(n));
+    n = nextSibling(n);
+    /* recursively loop through nodes of all types, but all we really need are the overloaded functions */
+    while (n) {
+      update_defaultargs(firstChild(n));
+      if (!Getattr(n, "defaultargs")) {
+	if (Getattr(n, "needs_defaultargs")) {
+	  Setattr(n, "defaultargs", firstdefaultargs);
+	  Delattr(n, "needs_defaultargs");
+	} else {
+	  firstdefaultargs = n;
+	}
+      } else {
+	/* Functions added in with %extend (for specialized template classes) will already have default args patched up */
+	assert(Getattr(n, "defaultargs") == firstdefaultargs);
+      }
+      n = nextSibling(n);
+    }
   }
 }
 
@@ -2573,6 +2607,7 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
 		  {
                     Node *nn = n;
                     Node *linklistend = 0;
+                    Node *linkliststart = 0;
                     while (nn) {
                       Node *templnode = 0;
                       if (Strcmp(nodeType(nn),"template") == 0) {
@@ -2654,7 +2689,7 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                           }
 
                           templnode = copy_node(nn);
-			  update_nested_classes(templnode); /* update classes nested withing template */
+			  update_nested_classes(templnode); /* update classes nested within template */
                           /* We need to set the node name based on name used to instantiate */
                           Setattr(templnode,"name",tname);
 			  Delete(tname);
@@ -2728,7 +2763,11 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                               Swig_symbol_setscope(csyms);
                             }
 
-                            /* Merge in %extend methods for this class */
+                            /* Merge in %extend methods for this class.
+			       This only merges methods within %extend for a template specialized class such as
+			         template<typename T> class K {}; %extend K<int> { ... }
+			       The copy_node() call above has already added in the generic %extend methods such as
+			         template<typename T> class K {}; %extend K { ... } */
 
 			    /* !!! This may be broken.  We may have to add the
 			       %extend methods at the beginning of the class */
@@ -2771,6 +2810,8 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                         }
 
                         /* all the overloaded templated functions are added into a linked list */
+                        if (!linkliststart)
+                          linkliststart = templnode;
                         if (nscope_inner) {
                           /* non-global namespace */
                           if (templnode) {
@@ -2791,6 +2832,7 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                       }
                       nn = Getattr(nn,"sym:nextSibling"); /* repeat for overloaded templated functions. If a templated class there will never be a sibling. */
                     }
+                    update_defaultargs(linkliststart);
 		  }
 	          Swig_symbol_setscope(tscope);
 		  Delete(Namespaceprefix);
@@ -2898,6 +2940,14 @@ c_decl  : storage_class type declarator initializer c_decl_tail {
 	      Setattr($$,"throws",$4.throws);
 	      Setattr($$,"throw",$4.throwf);
 	      Setattr($$,"noexcept",$4.nexcept);
+	      if ($4.val && $4.type) {
+		/* store initializer type as it might be different to the declared type */
+		SwigType *valuetype = NewSwigType($4.type);
+		if (Len(valuetype) > 0)
+		  Setattr($$,"valuetype",valuetype);
+		else
+		  Delete(valuetype);
+	      }
 	      if (!$5) {
 		if (Len(scanner_ccode)) {
 		  String *code = Copy(scanner_ccode);
@@ -2925,8 +2975,8 @@ c_decl  : storage_class type declarator initializer c_decl_tail {
                    matches that of the declaration, then we will allow it. Otherwise, delete. */
                 String *p = Swig_scopename_prefix($3.id);
 		if (p) {
-		  if ((Namespaceprefix && Strcmp(p,Namespaceprefix) == 0) ||
-		      (inclass && Strcmp(p,Classprefix) == 0)) {
+		  if ((Namespaceprefix && Strcmp(p, Namespaceprefix) == 0) ||
+		      (Classprefix && Strcmp(p, Classprefix) == 0)) {
 		    String *lstr = Swig_scopename_last($3.id);
 		    Setattr($$,"name",lstr);
 		    Delete(lstr);
@@ -2981,8 +3031,8 @@ c_decl  : storage_class type declarator initializer c_decl_tail {
 	      if (Strstr($3.id,"::")) {
                 String *p = Swig_scopename_prefix($3.id);
 		if (p) {
-		  if ((Namespaceprefix && Strcmp(p,Namespaceprefix) == 0) ||
-		      (inclass && Strcmp(p,Classprefix) == 0)) {
+		  if ((Namespaceprefix && Strcmp(p, Namespaceprefix) == 0) ||
+		      (Classprefix && Strcmp(p, Classprefix) == 0)) {
 		    String *lstr = Swig_scopename_last($3.id);
 		    Setattr($$,"name",lstr);
 		    Delete(lstr);
@@ -3618,6 +3668,7 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 		   Swig_symbol_setscope(cscope);
 		   Delete(Namespaceprefix);
 		   Namespaceprefix = Swig_symbol_qualifiedscopename(0);
+		   Classprefix = currentOuterClass ? Getattr(currentOuterClass, "Classprefix") : 0;
 	       }
 
 /* An unnamed struct, possibly with a typedef */
@@ -3654,7 +3705,7 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 	       cparse_start_line = cparse_line;
 	       currentOuterClass = $<node>$;
 	       inclass = 1;
-	       Classprefix = NewStringEmpty();
+	       Classprefix = 0;
 	       Delete(Namespaceprefix);
 	       Namespaceprefix = Swig_symbol_qualifiedscopename(0);
 	       /* save the structure declaration to make a typedef for it later*/
@@ -3765,6 +3816,7 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 		 Delete($$);
 		 $$ = $6; /* pass member list to outer class/namespace (instead of self)*/
 	       }
+	       Classprefix = currentOuterClass ? Getattr(currentOuterClass, "Classprefix") : 0;
               }
              ;
 
@@ -6101,11 +6153,11 @@ exprcompound   : expr PLUS expr {
 	       }
 /* Sadly this causes 2 reduce-reduce conflicts with templates.  FIXME resolve these.
                | expr GREATERTHAN expr {
-		 $$.val = NewStringf("%s < %s", $1.val, $3.val);
+		 $$.val = NewStringf("%s > %s", $1.val, $3.val);
 		 $$.type = cparse_cplusplus ? T_BOOL : T_INT;
 	       }
                | expr LESSTHAN expr {
-		 $$.val = NewStringf("%s > %s", $1.val, $3.val);
+		 $$.val = NewStringf("%s < %s", $1.val, $3.val);
 		 $$.type = cparse_cplusplus ? T_BOOL : T_INT;
 	       }
 */

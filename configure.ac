@@ -2,7 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 dnl The macros which aren't shipped with the autotools are stored in the
 dnl Tools/config directory in .m4 files.
 
-AC_INIT([swig],[3.0.8],[http://www.swig.org])
+AC_INIT([swig],[3.0.9],[http://www.swig.org])
 
 dnl NB: When this requirement is increased to 2.60 or later, AC_PROG_SED
 dnl     definition below can be removed
@@ -117,20 +117,6 @@ echo "Note : None of the following packages are required for users to compile an
 echo ""
 
 AC_PROG_YACC
-AC_CHECK_PROGS(YODL2MAN, yodl2man)
-AC_CHECK_PROGS(YODL2HTML, yodl2html)
-
-if test -n "$YODL2MAN"; then
-  AC_MSG_CHECKING([yodl2man version >= 2.02])
-  [yodl_version=`$YODL2MAN --version 2>&1 | grep 'yodl version' | sed 's/.*\([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\).*/\1/g'`]
-  AX_COMPARE_VERSION([$yodl_version],[ge],[2.02], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no - $yodl_version found])])
-fi
-
-if test -n "$YODL2HTML"; then
-  AC_MSG_CHECKING([yodl2html version >= 2.02])
-  [yodl_version=`$YODL2HTML --version 2>&1 | grep 'yodl version' | sed 's/.*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/g'`]
-  AX_COMPARE_VERSION([$yodl_version],[ge],[2.02], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no - $yodl_version found])])
-fi
 
 echo ""
 echo "Checking for installed target languages and other information in order to compile and run"
@@ -612,7 +598,7 @@ if test x"${PYBIN}" = xno; then
 else
   # First figure out the name of the Python executable
   if test "x$PYBIN" = xyes; then
-    AC_CHECK_PROGS(PYTHON, [python python2.8 python2.7 python2.6 python2.5 python2.4 python2.3 python2.2 python2.1 python2.0 python1.6 python1.5 python1.4])
+    AC_CHECK_PROGS(PYTHON, [python python2.8 python2.7 python2.6 python2.5 python2.4 python2.3 python2.2 python2.1 python2.0])
   else
     PYTHON="$PYBIN"
   fi
@@ -624,6 +610,10 @@ else
     AC_MSG_RESULT($PYVER)
     if test -z "$PYVER"; then
       PYVER=0
+    else
+      AC_MSG_CHECKING(for Python os.name)
+      PYOSNAME=`($PYTHON -c "import sys, os; sys.stdout.write(os.name)")`
+      AC_MSG_RESULT($PYOSNAME)
     fi
   fi
 
@@ -634,9 +624,6 @@ else
     AC_MSG_CHECKING(for Python exec-prefix)
     PYEPREFIX=`($PYTHON -c "import sys; sys.stdout.write(sys.exec_prefix)") 2>/dev/null`
     AC_MSG_RESULT($PYEPREFIX)
-    AC_MSG_CHECKING(for Python os.name)
-    PYOSNAME=`($PYTHON -c "import sys, os; sys.stdout.write(os.name)")`
-    AC_MSG_RESULT($PYOSNAME)
 
     if test x"$PYOSNAME" = x"nt"; then
       # Windows installations are quite different to posix installations
@@ -751,22 +738,28 @@ AS_HELP_STRING([--with-python3=path], [Set location of Python 3.x executable]),[
 if test x"${PY3BIN}" = xno; then
   AC_MSG_NOTICE([Disabling Python 3.x support])
 else
+  if test -z "$PYVER"; then
+    PYVER=0
+  fi
   if test "x$PY3BIN" = xyes; then
-    for py_ver in 3 3.9 3.8 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0 ""; do
-      AC_CHECK_PROGS(PYTHON3, [python$py_ver])
-      if test -n "$PYTHON3"; then
-        AC_CHECK_PROGS(PY3CONFIG, [$PYTHON3-config])
-        if test -n "$PY3CONFIG"; then
-          break
+    if test x"$PYOSNAME" = x"nt" -a $PYVER -ge 3; then
+      PYTHON3="$PYTHON"
+    else
+      for py_ver in 3 3.9 3.8 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0 ""; do
+        AC_CHECK_PROGS(PYTHON3, [python$py_ver])
+        if test -n "$PYTHON3"; then
+          AC_CHECK_PROGS(PY3CONFIG, [$PYTHON3-config])
+          if test -n "$PY3CONFIG"; then
+            break
+          fi
         fi
-      fi
-    done
+      done
+    fi
   else
     PYTHON3="$PY3BIN"
     AC_CHECK_PROGS(PY3CONFIG, [$PYTHON3-config])
   fi
 
-  PYVER=0
   if test -n "$PYTHON3"; then
     AC_MSG_CHECKING([for $PYTHON3 major version number])
     PYVER=`($PYTHON3 -c "import sys; sys.stdout.write(sys.version[[0]])") 2>/dev/null`
@@ -1384,6 +1377,8 @@ if test -n "$JAVAC"; then
   JAVAC=\"$JAVAC\"
 fi
 
+# Turned off due to spurious warnings in later versions of openjdk-1.8
+# JAVAFLAGS=-Xcheck:jni
 
 AC_SUBST(JAVA)
 AC_SUBST(JAVAC)
@@ -1393,6 +1388,7 @@ AC_SUBST(JAVALIBRARYPREFIX)
 AC_SUBST(JAVASO)
 AC_SUBST(JAVALDSHARED)
 AC_SUBST(JAVACXXSHARED)
+AC_SUBST(JAVAFLAGS)
 AC_SUBST(JAVACFLAGS)
 
 #----------------------------------------------------------------
@@ -1429,7 +1425,7 @@ else
   # Look for Node.js which is the default Javascript engine
   #----------------------------------------------------------------
 
-  AC_CHECK_PROGS(NODEJS, node)
+  AC_CHECK_PROGS(NODEJS, [nodejs node])
 
   if test -n "$NODEJS"; then
     # node-gyp is needed to run the test-suite/examples
@@ -1795,6 +1791,7 @@ AC_MSG_CHECKING(for Ruby header files)
 if test -n "$RUBY"; then
         # Try Ruby1.9+ first
         RUBYDIR=`($RUBY -rrbconfig -e 'print RbConfig::CONFIG[["rubyhdrdir"]] || $rubyhdrdir') 2>/dev/null`
+        RUBYARCHHDRDIR=`($RUBY -rrbconfig -e 'print RbConfig::CONFIG[["rubyarchhdrdir"]] || $rubyarchhdrdir') 2>/dev/null`
 	if test x"$RUBYDIR" = x"" || test x"$RUBYDIR" = x"nil"; then
 		RUBYDIR=`($RUBY -rrbconfig -e 'print RbConfig::CONFIG[["archdir"]] || $archdir') 2>/dev/null`
         else
@@ -1807,6 +1804,8 @@ if test -n "$RUBY"; then
 			if test -r $i/ruby.h; then
 				if test x"$RUBYARCH" = x""; then
 					RUBYINCLUDE="-I$i"
+				elif test -n "$RUBYARCHHDRDIR"; then
+					RUBYINCLUDE="-I$i -I$RUBYARCHHDRDIR"
 				else
 					RUBYINCLUDE="-I$i -I$i/$RUBYARCH"
 				fi
@@ -1821,9 +1820,10 @@ if test -n "$RUBY"; then
 		# Find library and path for linking.
 		AC_MSG_CHECKING(for Ruby library)
 		RUBYLIB=""
+		rb_archlibdir=`($RUBY -rrbconfig -e 'print RbConfig::CONFIG[["archlibdir"]]') 2>/dev/null`
 		rb_libdir=`($RUBY -rrbconfig -e 'print RbConfig::CONFIG[["libdir"]]') 2>/dev/null`
 		rb_bindir=`($RUBY -rrbconfig -e 'print RbConfig::CONFIG[["bindir"]]') 2>/dev/null`
-		dirs="$dirs $rb_libdir $rb_bindir"
+		dirs="$dirs $rb_archlibdir $rb_libdir $rb_bindir"
 
         rb_libruby=`($RUBY -rrbconfig -e 'print RbConfig::CONFIG[["LIBRUBY_A"]]') 2>/dev/null`
         RUBYLINK=`($RUBY -rrbconfig -e '
@@ -2302,7 +2302,7 @@ if test "x$LUABIN" = xyes; then
    # The search order should match the include-file and library search
    # orders below (a Lua shared library built for one version may not
    # work with a Lua binary of a different version).
-   AC_PATH_PROGS(LUABIN, [lua5.2 lua5.1 lua])
+   AC_PATH_PROGS(LUABIN, [lua5.4 lua5.3 lua5.2 lua5.1 lua])
 fi
 
 # check version: we need Lua 5.x
@@ -2353,7 +2353,7 @@ if test "$LUABIN"; then
       # The ordering of the include directories to search should match
       # the ordering of libraries to search in the library test below.
       inc=/usr/include
-      dirs="$inc/lua5.2 $inc/lua5.1 $inc/lua51 $inc/lua5.0 $inc/lua50 /usr/local/include"
+      dirs="$inc/lua5.4 $inc/lua5.3 $inc/lua5.2 $inc/lua5.1 $inc/lua51 $inc/lua5.0 $inc/lua50 /usr/local/include"
       for i in $dirs; do
         #echo "$i"
         if test -r $i/lua.h; then
@@ -2376,7 +2376,7 @@ if test "$LUABIN"; then
   if test -n "$LUALIB"; then
     AC_CHECK_FILE($LUALIB/liblua.a,[LUALINK="-L$LUALIB -llua"],[LUABIN=])
   else
-    AC_SEARCH_LIBS(lua_close, [lua lua5.2 lua5.1 lua51 lua5.0 lua50], [LUALINK="-l$ac_lib"],[LUABIN=])
+    AC_SEARCH_LIBS(lua_close, [lua lua5.4 lua5.3 lua5.2 lua5.1 lua51 lua5.0 lua50], [LUALINK="-l$ac_lib"],[LUABIN=])
   fi
 
   # adding lualib for lua 5.0

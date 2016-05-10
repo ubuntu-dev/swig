@@ -195,8 +195,7 @@ public:
     /* Output module initialization code */
     Swig_banner(beginSection);
 
-    Printf(runtimeSection, "\n#define SWIGSCILAB\n");
-    Printf(runtimeSection, "\n");
+    Printf(runtimeSection, "\n\n#ifndef SWIGSCILAB\n#define SWIGSCILAB\n#endif\n\n");
 
     // Gateway header source merged with wrapper source in nobuilder mode
     if (!generateBuilder)
@@ -885,7 +884,7 @@ public:
     Printf(builderCode, "libs = [];\n");
 
     // Flags from command line arguments
-    Printf(builderCode, "cflags = [];\n");
+    Printf(builderCode, "cflags = \"\";\n");
     for (int i = 0; i < Len(cflags); i++) {
       String *cflag = Getitem(cflags, i);
       Printf(builderCode, "cflags = cflags + \" %s\";\n", cflag);
@@ -901,7 +900,7 @@ public:
 	}
       }
     } else {
-      Printf(builderCode, "ldflags = [];\n");
+      Printf(builderCode, "ldflags = \"\";\n");
     }
 
     // External script to set flags

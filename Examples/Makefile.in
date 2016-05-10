@@ -390,7 +390,7 @@ PY2TO3 = 2to3 `2to3 -l | grep -v -E "Available|import$$" | awk '{print "-f "$$0}
 
 python_run: $(PYSCRIPT)
 ifneq (,$(PEP8))
-	$(PEP8) $(PEP8_FLAGS) $(PYSCRIPT)
+	$(COMPILETOOL) $(PEP8) $(PEP8_FLAGS) $(PYSCRIPT)
 endif
 	env PYTHONPATH=$$PWD $(RUNTOOL) $(PYTHON) $(PYSCRIPT) $(RUNPIPE)
 
@@ -587,6 +587,7 @@ JAVASO =@JAVASO@
 JAVALDSHARED = @JAVALDSHARED@
 JAVACXXSHARED = @JAVACXXSHARED@
 JAVACFLAGS = @JAVACFLAGS@
+JAVAFLAGS = @JAVAFLAGS@
 JAVA = @JAVA@
 JAVAC = @JAVAC@ -d .
 
@@ -620,7 +621,7 @@ java_compile: $(SRCDIR_SRCS)
 # -----------------------------------------------------------------
 
 java_run:
-	env LD_LIBRARY_PATH=$$PWD $(RUNTOOL) $(JAVA) $(RUNME) $(RUNPIPE)
+	env LD_LIBRARY_PATH=$$PWD $(RUNTOOL) $(JAVA) $(JAVAFLAGS) $(RUNME) $(RUNPIPE)
 
 # -----------------------------------------------------------------
 # Version display
@@ -1096,7 +1097,7 @@ ruby_cpp_static: $(SRCDIR_SRCS)
 # -----------------------------------------------------------------
 
 ruby_run:
-	$(RUNTOOL) $(RUBY) -I. $(RUBY_SCRIPT) $(RUNPIPE)
+	$(RUNTOOL) $(RUBY) $(RUBYFLAGS) -I. $(RUBY_SCRIPT) $(RUNPIPE)
 
 # -----------------------------------------------------------------
 # Version display
@@ -1670,6 +1671,7 @@ R = R
 RCXXSRCS = $(INTERFACE:.i=_wrap.cpp) #Need to use _wrap.cpp for R build system as it does not understand _wrap.cxx
 RRSRC = $(INTERFACE:.i=.R)
 R_CFLAGS=-fPIC
+R_OPT = --slave --quiet --no-save --no-restore
 R_SCRIPT=$(SRCDIR)$(RUNME).R
 
 # need to compile .cxx files outside of R build system to make sure that
@@ -1702,7 +1704,7 @@ endif
 # -----------------------------------------------------------------
 
 r_run:
-	$(RUNTOOL) $(R) CMD BATCH $(R_SCRIPT) $(RUNPIPE)
+	$(RUNTOOL) $(R) $(R_OPT) -f $(R_SCRIPT) $(RUNPIPE)
 
 # -----------------------------------------------------------------
 # Version display

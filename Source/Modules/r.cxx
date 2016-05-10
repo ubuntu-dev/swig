@@ -793,9 +793,7 @@ int R::top(Node *n) {
 
   Swig_banner(f_begin);
 
-  Printf(f_runtime, "\n");
-  Printf(f_runtime, "#define SWIGR\n");
-  Printf(f_runtime, "\n");
+  Printf(f_runtime, "\n\n#ifndef SWIGR\n#define SWIGR\n#endif\n\n");
 
   
   Swig_banner_target_lang(s_init, "#");
@@ -1181,6 +1179,9 @@ int R::OutputArrayMethod(String *className, List *el, File *out) {
  tdname is the typedef of the enumeration, i.e. giving its name.
 *************************************************************/
 int R::enumDeclaration(Node *n) {
+  if (getCurrentClass() && (cplus_mode != PUBLIC))
+    return SWIG_NOWRAP;
+
   String *name = Getattr(n, "name");
   String *tdname = Getattr(n, "tdname");
   
