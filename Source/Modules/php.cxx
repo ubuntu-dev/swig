@@ -44,7 +44,6 @@
 
 static const char *usage = "\
 PHP Options (available with -php)\n\
-     -cppext <ext>    - Change C++ file extension to <ext> (default is cpp)\n\
      -noproxy         - Don't generate proxy classes.\n\
      -prefix <prefix> - Prepend <prefix> to all class names in PHP wrappers\n\
 \n";
@@ -191,7 +190,7 @@ class PHP : public Language {
 	p = strchr(p, '"');
 	if (p) {
 	  ++p;
-	  Insert(action, p - Char(action), " TSRMLS_CC");
+	  Insert(action, (int)(p - Char(action)), " TSRMLS_CC");
 	}
       }
     }
@@ -215,15 +214,6 @@ public:
       if (strcmp(argv[i], "-prefix") == 0) {
 	if (argv[i + 1]) {
 	  prefix = NewString(argv[i + 1]);
-	  Swig_mark_arg(i);
-	  Swig_mark_arg(i + 1);
-	  i++;
-	} else {
-	  Swig_arg_error();
-	}
-      } else if (strcmp(argv[i], "-cppext") == 0) {
-	if (argv[i + 1]) {
-	  SWIG_config_cppext(argv[i + 1]);
 	  Swig_mark_arg(i);
 	  Swig_mark_arg(i + 1);
 	  i++;
@@ -330,9 +320,7 @@ public:
 
     Swig_banner(f_begin);
 
-    Printf(f_runtime, "\n");
-    Printf(f_runtime, "#define SWIGPHP\n");
-    Printf(f_runtime, "\n");
+    Printf(f_runtime, "\n\n#ifndef SWIGPHP\n#define SWIGPHP\n#endif\n\n");
 
     if (directorsEnabled()) {
       Printf(f_runtime, "#define SWIG_DIRECTORS\n");
@@ -483,6 +471,7 @@ public:
 
     if (directorsEnabled()) {
       // Insert director runtime
+      Swig_insert_file("director_common.swg", s_header);
       Swig_insert_file("director.swg", s_header);
     }
 
@@ -648,7 +637,7 @@ public:
     Printv(f_begin, all_cs_entry, "\n\n", s_arginfo, "\n\n", s_entry,
 	" SWIG_ZEND_NAMED_FE(swig_", module, "_alter_newobject,_wrap_swig_", module, "_alter_newobject,NULL)\n"
 	" SWIG_ZEND_NAMED_FE(swig_", module, "_get_newobject,_wrap_swig_", module, "_get_newobject,NULL)\n"
-	"{NULL, NULL, NULL}\n};\n\n", NIL);
+	" ZEND_FE_END\n};\n\n", NIL);
     Printv(f_begin, s_init, NIL);
     Delete(s_header);
     Delete(s_wrappers);
@@ -836,13 +825,6 @@ public:
       Delete(args);
       args = NULL;
     }
-    if (is_member_director(n)) {
-      Wrapper_add_local(f, "director", "Swig::Director *director = 0");
-      Printf(f->code, "director = dynamic_cast<Swig::Director*>(arg1);\n");
-      Wrapper_add_local(f, "upcall", "bool upcall = false");
-      Printf(f->code, "upcall = !director->swig_is_overridden_method((char *)\"%s%s\", (char *)\"%s\");\n",
-	  prefix, Swig_class_name(Swig_methodclass(n)), name);
-    }
 
     // This generated code may be called:
     // 1) as an object method, or
@@ -929,6 +911,12 @@ public:
 	Printf(f->code, "\t}\n");
       }
       Delete(source);
+    }
+
+    if (is_member_director(n)) {
+      Wrapper_add_local(f, "upcall", "bool upcall = false");
+      Printf(f->code, "upcall = !Swig::Director::swig_is_overridden_method((char *)\"%s%s\", (char *)\"%s\" TSRMLS_CC);\n",
+	  prefix, Swig_class_name(Swig_methodclass(n)), name);
     }
 
     Swig_director_emit_dynamic_cast(n, f);
@@ -1278,7 +1266,7 @@ public:
 		  break;
 		char *p;
 		errno = 0;
-		int n = strtol(Char(value), &p, 0);
+		long n = strtol(Char(value), &p, 0);
 	        Clear(value);
 		if (errno || *p) {
 		  Append(value, "?");
@@ -1293,10 +1281,11 @@ public:
 	      case T_SCHAR:
 	      case T_SHORT:
 	      case T_INT:
-	      case T_LONG: {
+	      case T_LONG:
+	      case T_LONGLONG: {
 		char *p;
 		errno = 0;
-		unsigned int n = strtol(Char(value), &p, 0);
+		long n = strtol(Char(value), &p, 0);
 		(void) n;
 		if (errno || *p) {
 		  Clear(value);
@@ -1307,7 +1296,8 @@ public:
 	      case T_UCHAR:
 	      case T_USHORT:
 	      case T_UINT:
-	      case T_ULONG: {
+	      case T_ULONG:
+	      case T_ULONGLONG: {
 		char *p;
 		errno = 0;
 		unsigned int n = strtoul(Char(value), &p, 0);
@@ -1319,7 +1309,8 @@ public:
 		break;
 	      }
 	      case T_FLOAT:
-	      case T_DOUBLE:{
+	      case T_DOUBLE:
+	      case T_LONGDOUBLE: {
 		char *p;
 		errno = 0;
 		/* FIXME: strtod is locale dependent... */
@@ -1338,13 +1329,6 @@ public:
 		}
 		break;
 	      }
-	      case T_REFERENCE:
-	      case T_RVALUE_REFERENCE:
-	      case T_USER:
-	      case T_ARRAY:
-		Clear(value);
-		Append(value, "?");
-		break;
 	      case T_STRING:
 		if (Len(value) < 2) {
 		  // How can a string (including "" be less than 2 characters?)
@@ -1393,6 +1377,11 @@ public:
 		}
 		break;
 	      }
+	      default:
+		/* Safe default */
+		Clear(value);
+		Append(value, "?");
+		break;
 	    }
 
 	    if (!arg_values[argno]) {
@@ -1731,7 +1720,7 @@ public:
 	      Printf(output, "\t\t\treturn new %s%s($r);\n", prefix, Getattr(classLookup(d), "sym:name"));
 	    } else {
 	      Printf(output, "\t\t\t$c = new stdClass();\n");
-	      Printf(output, "\t\t\t$c->"SWIG_PTR" = $r;\n");
+	      Printf(output, "\t\t\t$c->" SWIG_PTR " = $r;\n");
 	      Printf(output, "\t\t\treturn $c;\n");
 	    }
 	    Printf(output, "\t\t}\n\t\treturn $r;\n");
@@ -1741,7 +1730,8 @@ public:
 	  }
 	} else {
 	  Printf(output, "\t\tif (!is_resource($r)) return $r;\n");
-	  Printf(output, "\t\tswitch (get_resource_type($r)) {\n");
+	  String *wrapobj = NULL;
+	  String *common = NULL;
 	  Iterator i = First(ret_types);
 	  while (i.item) {
 	    SwigType *ret_type = i.item;
@@ -1761,22 +1751,43 @@ public:
 		continue;
 	      }
 	    }
-	    Printf(output, "\t\t");
-	    if (i.item) {
-	      Printf(output, "case '%s': ", mangled);
-	    } else {
-	      Printf(output, "default: ");
-	    }
 	    const char *classname = GetChar(class_node, "sym:name");
 	    if (!classname)
 	      classname = GetChar(class_node, "name");
+	    String * action = NewStringEmpty();
 	    if (classname)
-	      Printf(output, "return new %s%s($r);\n", prefix, classname);
+	      Printf(action, "return new %s%s($r);\n", prefix, classname);
             else
-	      Printf(output, "return $r;\n");
+	      Printf(action, "return $r;\n");
+	    if (!wrapobj) {
+		wrapobj = NewString("\t\tswitch (get_resource_type($r)) {\n");
+		common = action;
+	    } else {
+		if (common && Cmp(common, action) != 0) {
+		    Delete(common);
+		    common = NULL;
+		}
+	    }
+	    Printf(wrapobj, "\t\t");
+	    if (i.item) {
+	      Printf(wrapobj, "case '%s': ", mangled);
+	    } else {
+	      Printf(wrapobj, "default: ");
+	    }
+	    Printv(wrapobj, action, NIL);
+	    if (action != common) Delete(action);
 	    Delete(mangled);
 	  }
-	  Printf(output, "\t\t}\n");
+	  Printf(wrapobj, "\t\t}\n");
+	  if (common) {
+	      // All cases have the same action, so eliminate the switch
+	      // wrapper.
+	      Printf(output, "\t\t%s", common);
+	      Delete(common);
+	  } else {
+	      Printv(output, wrapobj, NIL);
+	  }
+	  Delete(wrapobj);
 	}
       } else {
 	if (non_void_return) {
@@ -1893,7 +1904,7 @@ done:
 	enumvalue = GetChar(n, "enumvalueex");
       }
 
-      if (enumvalue) {
+      if (enumvalue && *Char(enumvalue)) {
 	// Check for a simple constant expression which is valid in PHP.
 	// If we find one, initialise the const member with it; otherwise
 	// we initialise it using the C/C++ wrapped constant.
@@ -1905,7 +1916,8 @@ done:
 	    break;
 	  }
 	}
-	if (!*p) set_to = enumvalue;
+	if (!*p)
+	  set_to = enumvalue;
       }
 
       if (wrapping_member_constant) {
@@ -2007,7 +2019,7 @@ done:
 	    String *proxyclassname = SwigType_str(Getattr(n, "classtypeobj"), 0);
 	    String *baseclassname = SwigType_str(Getattr(base.item, "name"), 0);
 	    Swig_warning(WARN_PHP_MULTIPLE_INHERITANCE, input_file, line_number,
-			 "Warning for %s proxy: Base %s ignored. Multiple inheritance is not supported in PHP.\n", proxyclassname, baseclassname);
+			 "Warning for %s, base %s ignored. Multiple inheritance is not supported in PHP.\n", proxyclassname, baseclassname);
 	    base = Next(base);
 	  }
 	}
@@ -2411,7 +2423,7 @@ done:
 	String *target = Swig_method_decl(0, decl, classname, parms, 0, 0);
 	const char * p = Char(target);
 	const char * comma = strchr(p, ',');
-	size_t ins = comma ? comma - p : Len(target) - 1;
+	int ins = comma ? (int)(comma - p) : Len(target) - 1;
 	Insert(target, ins, " TSRMLS_DC");
 
 	call = Swig_csuperclass_call(0, basetype, superparms);
@@ -2430,7 +2442,7 @@ done:
 	String *target = Swig_method_decl(0, decl, classname, parms, 0, 1);
 	const char * p = Char(target);
 	const char * comma = strchr(p, ',');
-	size_t ins = comma ? comma - p : Len(target) - 1;
+	int ins = comma ? (int)(comma - p) : Len(target) - 1;
 	Insert(target, ins, " TSRMLS_DC");
 
 	Printf(f_directors_h, "    %s;\n", target);

@@ -329,8 +329,7 @@ public:
     /* Standard stuff for the SWIG runtime section */
     Swig_banner(f_begin);
 
-    Printf(f_runtime, "\n");
-    Printf(f_runtime, "#define SWIGLUA\n");
+    Printf(f_runtime, "\n\n#ifndef SWIGLUA\n#define SWIGLUA\n#endif\n\n");
 
     emitLuaFlavor(f_runtime);
 
@@ -1158,6 +1157,9 @@ public:
    * ------------------------------------------------------------ */
 
   virtual int enumDeclaration(Node *n) {
+    if (getCurrentClass() && (cplus_mode != PUBLIC))
+      return SWIG_NOWRAP;
+
     current[STATIC_CONST] = true;
     current[ENUM_CONST] = true;
     // There is some slightly specific behaviour with enums. Basically,
@@ -1184,10 +1186,12 @@ public:
     if (getCurrentClass() && (cplus_mode != PUBLIC))
       return SWIG_NOWRAP;
 
-    Swig_require("enumvalueDeclaration", n, "*name", "?value", NIL);
+    Swig_require("enumvalueDeclaration", n, "*name", "?value", "*sym:name", NIL);
+    String *symname = Getattr(n, "sym:name");
     String *value = Getattr(n, "value");
     String *name = Getattr(n, "name");
     String *tmpValue;
+    Node *parent = parentNode(n);
 
     if (value)
       tmpValue = NewString(value);
@@ -1196,6 +1200,13 @@ public:
     Setattr(n, "value", tmpValue);
 
     Setattr(n, "name", tmpValue);	/* for wrapping of enums in a namespace when emit_action is used */
+
+    if (GetFlag(parent, "scopedenum")) {
+      symname = Swig_name_member(0, Getattr(parent, "sym:name"), symname);
+      Setattr(n, "sym:name", symname);
+      Delete(symname);
+    }
+
     int result = constantWrapper(n);
 
     Delete(tmpValue);

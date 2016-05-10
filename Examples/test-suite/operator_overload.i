@@ -73,10 +73,8 @@ see bottom for a set of possible tests
 %rename(OrOperator) operator ||;
 #endif
 
-#ifdef SWIG_ALLEGRO_CL
-%{
-#include <stdio.h>
-%}
+#if defined(SWIGPYTHON)
+%feature("python:slot", "tp_str", functype="reprfunc") Op::__str__;
 #endif
 
 #ifdef SWIGD
@@ -89,6 +87,7 @@ see bottom for a set of possible tests
 %rename(DoubleCast) operator double();
 
 %inline %{
+#include <stdio.h>
 
 #if defined(_MSC_VER)
   #include <iso646.h> /* for named logical operator, eg 'operator or' */
@@ -114,11 +113,11 @@ public:
     return *this;
   }
   // +=,-=... are member fns
-  void operator+=(const Op& o){ i+=o.i;}
-  void operator-=(const Op& o){ i-=o.i;}
-  void operator*=(const Op& o){ i*=o.i;}
-  void operator/=(const Op& o){ i/=o.i;}
-  void operator%=(const Op& o){ i%=o.i;}
+  Op &operator+=(const Op& o){ i+=o.i; return *this; }
+  Op &operator-=(const Op& o){ i-=o.i; return *this; }
+  Op &operator*=(const Op& o){ i*=o.i; return *this; }
+  Op &operator/=(const Op& o){ i/=o.i; return *this; }
+  Op &operator%=(const Op& o){ i%=o.i; return *this; }
   // the +,-,*,... are friends
   // (just to make life harder)
   friend Op operator+(const Op& a,const Op& b){return Op(a.i+b.i);}
