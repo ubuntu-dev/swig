@@ -28,11 +28,12 @@
 
 /* Primitive types */
 %typemap(forth) bool,			const bool &			"n"
-%typemap(forth) char,			const char &			"n"
+%typemap(forth) char,			const char &			"u"
 %typemap(forth) signed char,		const signed char &		"n"
-%typemap(forth) unsigned char,		const unsigned char &		"n"
+%typemap(forth) unsigned char,		const unsigned char &		"u"
 %typemap(forth) short,			const short &			"n"
-%typemap(forth) unsigned short,		const unsigned short &		"n"
+%typemap(forth) unsigned short,		const unsigned short &		"u"
+%typemap(forth) wchar_t,		const wchar_t &			"n"
 %typemap(forth) int,			const int &			"n"
 %typemap(forth) unsigned int,		const unsigned int &		"u"
 %typemap(forth) long,			const long &			"n"
@@ -48,6 +49,8 @@
 	%typemap(forth) char *, char[ANY], char[]			"a"
    all pointers are mapped to "a" (see documentation 10.3.3)	
  */
+%typemap(forth) const char *, const char[ANY], const char[]		"s"
+%typemap(forth) const wchar_t *, const wchar_t[ANY], const wchar_t[]    "ws"
 %typemap(forth) SWIGTYPE *						"a"
 %typemap(forth) SWIGTYPE []						"a"
 
@@ -55,7 +58,7 @@
 %typemap(forth) enum SWIGTYPE						"n"
 
 /* varargs get a special warning, but are not resolved to the default type */
-#define SWIG_FORTH_TYPE_VARARGS						"a a a"
+#define SWIG_FORTH_TYPE_VARARGS						"..."
 
 /* common templates */
 %include "sections.swg"

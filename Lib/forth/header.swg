@@ -17,22 +17,22 @@ void swigComment( char *comment )
 /* constants */
 void swigIntConstant( long constant, char *name )
 {
-	printf( "%ld\tconstant %s\n", constant, name );
+	printf( "#%ld\tconstant %s\n", constant, name );
 }
 
 void swigUnsignedIntConstant( unsigned long constant, char *name )
 {
-	printf( "%lu\tconstant %s\n", constant, name );
+	printf( "#%lu\tconstant %s\n", constant, name );
 }
 
 void swigLongConstant( long long constant, char *name )
 {
-	printf( "%lld.\t2constant %s\n", constant, name );
+	printf( "#%lld.\t2constant %s\n", constant, name );
 }
 
 void swigUnsignedLongConstant( unsigned long long constant, char *name )
 {
-	printf( "%llu.\t2constant %s\n", constant, name );
+	printf( "#%llu.\t2constant %s\n", constant, name );
 }
 
 void swigFloatConstant( double constant, char *name )

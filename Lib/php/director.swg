@@ -12,15 +12,6 @@
 #include <exception>
 #include <map>
 
-/*
-  Use -DSWIG_DIRECTOR_STATIC if you prefer to avoid the use of the
-  'Swig' namespace. This could be useful for multi-modules projects.
-*/
-#ifdef SWIG_DIRECTOR_STATIC
-/* Force anonymous (static) namespace */
-#define Swig
-#endif
-
 namespace Swig {
 
   /* memory handler */
@@ -98,8 +89,7 @@ namespace Swig {
         TSRMLS_SET_CTX(swig_zts_ctx);
       }
 
-      bool swig_is_overridden_method(char *cname, char *lc_fname) {
-        TSRMLS_FETCH_FROM_CTX(swig_zts_ctx);
+      static bool swig_is_overridden_method(char *cname, char *lc_fname TSRMLS_DC) {
         zend_class_entry **ce;
         zend_function *mptr;
 

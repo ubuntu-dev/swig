@@ -38,6 +38,7 @@
 #include "swigmod.h"
 
 #define FORTH_DEFAULT_TYPE "n"
+#define FORTH_DEFAULT_VAR_ARG_TYPE "..."
 #define AL(s) s, sizeof(s)
 
 static const char *usage = (char *) "\
@@ -46,6 +47,7 @@ Forth Options (available with -forth)\n\
      -use-structs   - enables structs (expterimental, mostly broken)\n\
                              on the target platform call 'gcc -E' (headers required)\n\
      -defaulttype <type>   - specifies the forth-type to be used when no typemap was found (default is " FORTH_DEFAULT_TYPE " )\n\
+     -vardefaulttype <type> - specifies the forth-type to be used for varargs (default is " FORTH_DEFAULT_VAR_ARG_TYPE " )\n\
      -forthifyfunctions    - change c-naming-convention into forth-names e.g. getAllStuff becomes get-all-stuff\n\
      -fsi-output           - generates an fsi(platform-independent) instead of an fs file, which needs to be compiled by gcc\n\
      -no-sectioncomments  - hides section comments in output file\n\
@@ -148,6 +150,7 @@ class FORTH : public Language
 		bool	useFunptrStruct;
 		bool	useFunptrTypedef;
 		String	*defaultType;
+                String  *defaultVarArgType;
 		List	*m_structs;
 		Hash	*m_structFields;
 		Hash	*m_templates;
@@ -217,6 +220,18 @@ void FORTH::main( int argc, char **argv )
 				else
 					Swig_arg_error();
 			}
+			else if( strcmp( argv[i], "-defaultvarargtype" ) == 0 )
+			{
+				if( i + 1 < argc && argv[i+1] )
+				{
+					defaultVarArgType = NewString("");
+					Printf( defaultType, argv[i+1] );
+					Swig_mark_arg( i );
+					Swig_mark_arg( ++i );
+				}
+				else
+					Swig_arg_error();
+			}
 			else if( strcmp( argv[i], "-help" ) == 0)
 			{
 				fputs( usage, stderr );
@@ -245,6 +260,9 @@ void FORTH::main( int argc, char **argv )
 
 	if( defaultType == NULL )
 		defaultType = NewString( FORTH_DEFAULT_TYPE );
+
+	if( defaultVarArgType == NULL )
+		defaultVarArgType = NewString( FORTH_DEFAULT_VAR_ARG_TYPE );
 
 	/* Set language-specific subdirectory in SWIG library */
 	SWIG_library_directory( "forth" );
@@ -988,10 +1006,8 @@ String *FORTH::typeLookup( Node *node, String *structTemplate )
 	else if( ! Strcmp( cTypeName, "..." ) )
 	{
 		containsVariableArguments = true;
-		String *defaultVarArgType = templateInstace( "TYPE_VARARGS" );
 		Swig_warning( WARN_FORTH_VARIABLE_ARGUMENTS, input_file, line_number, "Variable Argument List detected ( \"%s\" ), using \"%s\"\n", cTypeName, defaultVarArgType );
 		Printf( resultType, "%s", defaultVarArgType );
-		Delete( defaultVarArgType );
 	}
 	else
 	{

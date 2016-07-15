@@ -1635,9 +1635,7 @@ int ALLEGROCL::top(Node *n) {
 
   Swig_banner(f_begin);
 
-  Printf(f_runtime, "\n");
-  Printf(f_runtime, "#define SWIGALLEGROCL\n");
-  Printf(f_runtime, "\n");
+  Printf(f_runtime, "\n\n#ifndef SWIGALLEGROCL\n#define SWIGALLEGROCL\n#endif\n\n");
 
   Swig_banner_target_lang(f_cl, ";;");
 
@@ -1794,12 +1792,12 @@ static List *Swig_overload_rank(Node *n, bool script_lang_wrapping) {
 	    String *t2 = Getattr(p2, "tmap:typecheck:precedence");
 	    if ((!t1) && (!nodes[i].error)) {
 	      Swig_warning(WARN_TYPEMAP_TYPECHECK, Getfile(nodes[i].n), Getline(nodes[i].n),
-			   "Overloaded method %s not supported (no type checking rule for '%s').\n",
+			   "Overloaded method %s not supported (incomplete type checking rule - no precedence level in typecheck typemap for '%s').\n",
 			   Swig_name_decl(nodes[i].n), SwigType_str(Getattr(p1, "type"), 0));
 	      nodes[i].error = 1;
 	    } else if ((!t2) && (!nodes[j].error)) {
 	      Swig_warning(WARN_TYPEMAP_TYPECHECK, Getfile(nodes[j].n), Getline(nodes[j].n),
-			   "Overloaded method %s not supported (no type checking rule for '%s').\n",
+			   "Overloaded method %s not supported (incomplete type checking rule - no precedence level in typecheck typemap for '%s').\n",
 			   Swig_name_decl(nodes[j].n), SwigType_str(Getattr(p2, "type"), 0));
 	      nodes[j].error = 1;
 	    }
@@ -3167,6 +3165,9 @@ int ALLEGROCL::enumDeclaration(Node *n) {
 #ifdef ALLEGROCL_DEBUG
   Printf(stderr, "enumDeclaration %s\n", Getattr(n, "name"));
 #endif
+
+  if (getCurrentClass() && (cplus_mode != PUBLIC))
+    return SWIG_NOWRAP;
 
   if (Getattr(n, "sym:name")) {
     add_defined_foreign_type(n);

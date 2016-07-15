@@ -13,11 +13,14 @@
  * some point.  Beware.
  * ----------------------------------------------------------------------------- */
 
-/*
-Removed until we know more about the min versions of Bison and Yacc required for this
-to work, see Byacc man page: http://invisible-island.net/byacc/manpage/yacc.html
+/* There are 6 known shift-reduce conflicts in this file, fail compilation if any
+   more are introduced.
+
+   Please don't increase the number of the conflicts if at all possible. And if
+   you really have no choice but to do it, make sure you clearly document each
+   new conflict in this file.
+ */
 %expect 6
-*/
 
 %{
 #define yylex yylex
@@ -51,7 +54,7 @@ static String  *Classprefix = 0;
 static String  *Namespaceprefix = 0;
 static int      inclass = 0;
 static Node    *currentOuterClass = 0; /* for nested classes */
-static char    *last_cpptype = 0;
+static const char *last_cpptype = 0;
 static int      inherit_list = 0;
 static Parm    *template_parameters = 0;
 static int      extendmode   = 0;
@@ -140,6 +143,11 @@ static Node *copy_node(Node *n) {
     }
     if (strcmp(ckey,"nested:outer") == 0) { /* don't copy outer classes links, they will be updated later */
       Setattr(nn, key, k.item);
+      continue;
+    }
+    /* defaultargs will be patched back in later in update_defaultargs() */
+    if (strcmp(ckey,"defaultargs") == 0) {
+      Setattr(nn, "needs_defaultargs", "1");
       continue;
     }
     /* Looks okay.  Just copy the data using Copy */
@@ -371,6 +379,10 @@ static void add_symbols(Node *n) {
 	  if ((Cmp(Getattr(n,"storage"),"virtual") == 0) && (Cmp(Getattr(n,"value"),"0") == 0)) {
 	    only_csymbol = 0;
 	  }
+	  if (Cmp(nodeType(n),"destructor") == 0) {
+	    /* Needed for "unref" feature */
+	    only_csymbol = 0;
+	  }
 	}
       } else {
 	  Setattr(n,"access", "public");
@@ -459,18 +471,24 @@ static void add_symbols(Node *n) {
         SetFlag(n,"feature:ignore");
       }
     }
-    if (only_csymbol || GetFlag(n,"feature:ignore")) {
+    if (only_csymbol || GetFlag(n,"feature:ignore") || strncmp(Char(symname),"$ignore",7) == 0) {
       /* Only add to C symbol table and continue */
       Swig_symbol_add(0, n);
-    } else if (strncmp(Char(symname),"$ignore",7) == 0) {
-      char *c = Char(symname)+7;
-      SetFlag(n,"feature:ignore");
-      if (strlen(c)) {
-	SWIG_WARN_NODE_BEGIN(n);
-	Swig_warning(0,Getfile(n), Getline(n), "%s\n",c+1);
-	SWIG_WARN_NODE_END(n);
+      if (!only_csymbol && !GetFlag(n, "feature:ignore")) {
+	/* Print the warning attached to $ignore name, if any */
+        char *c = Char(symname) + 7;
+	if (strlen(c)) {
+	  SWIG_WARN_NODE_BEGIN(n);
+	  Swig_warning(0,Getfile(n), Getline(n), "%s\n",c+1);
+	  SWIG_WARN_NODE_END(n);
+	}
+	/* If the symbol was ignored via "rename" and is visible, set also feature:ignore*/
+	SetFlag(n, "feature:ignore");
       }
-      Swig_symbol_add(0, n);
+      if (!GetFlag(n, "feature:ignore") && Strcmp(symname,"$ignore") == 0) {
+	/* Add feature:ignore if the symbol was explicitely ignored, regardless of visibility */
+	SetFlag(n, "feature:ignore");
+      }
     } else {
       Node *c;
       if ((wrn) && (Len(wrn))) {
@@ -642,6 +660,32 @@ static void add_symbols_copy(Node *n) {
   }
 }
 
+/* Add in the "defaultargs" attribute for functions in instantiated templates.
+ * n should be any instantiated template (class or start of linked list of functions). */
+static void update_defaultargs(Node *n) {
+  if (n) {
+    Node *firstdefaultargs = n;
+    update_defaultargs(firstChild(n));
+    n = nextSibling(n);
+    /* recursively loop through nodes of all types, but all we really need are the overloaded functions */
+    while (n) {
+      update_defaultargs(firstChild(n));
+      if (!Getattr(n, "defaultargs")) {
+	if (Getattr(n, "needs_defaultargs")) {
+	  Setattr(n, "defaultargs", firstdefaultargs);
+	  Delattr(n, "needs_defaultargs");
+	} else {
+	  firstdefaultargs = n;
+	}
+      } else {
+	/* Functions added in with %extend (for specialized template classes) will already have default args patched up */
+	assert(Getattr(n, "defaultargs") == firstdefaultargs);
+      }
+      n = nextSibling(n);
+    }
+  }
+}
+
 /* Check a set of declarations to see if any are pure-abstract */
 
 static List *pure_abstracts(Node *n) {
@@ -699,14 +743,14 @@ static String *make_class_name(String *name) {
 
 /* Use typedef name as class name */
 
-static void add_typedef_name(Node *n, Node *decl, String *oldName, Symtab *cscope, String *scpname) {
+static void add_typedef_name(Node *n, Node *declnode, String *oldName, Symtab *cscope, String *scpname) {
   String *class_rename = 0;
-  SwigType *decltype = Getattr(decl, "decl");
-  if (!decltype || !Len(decltype)) {
+  SwigType *decl = Getattr(declnode, "decl");
+  if (!decl || !Len(decl)) {
     String *cname;
     String *tdscopename;
     String *class_scope = Swig_symbol_qualifiedscopename(cscope);
-    String *name = Getattr(decl, "name");
+    String *name = Getattr(declnode, "name");
     cname = Copy(name);
     Setattr(n, "tdname", cname);
     tdscopename = class_scope ? NewStringf("%s::%s", class_scope, name) : Copy(name);
@@ -717,7 +761,7 @@ static void add_typedef_name(Node *n, Node *decl, String *oldName, Symtab *cscop
     if (!Equal(scpname, tdscopename) && !Getattr(classes_typedefs, tdscopename)) {
       Setattr(classes_typedefs, tdscopename, n);
     }
-    Setattr(n, "decl", decltype);
+    Setattr(n, "decl", decl);
     Delete(class_scope);
     Delete(cname);
     Delete(tdscopename);
@@ -740,7 +784,7 @@ static String *remove_block(Node *kw, const String *inputcode) {
    String *name = Getattr(kw,"name");
    if (name && (Cmp(name,"noblock") == 0)) {
      char *cstr = Char(inputcode);
-     size_t len = Len(inputcode);
+     int len = Len(inputcode);
      if (len && cstr[0] == '{') {
        --len; ++cstr; 
        if (len && cstr[len - 1] == '}') { --len; }
@@ -977,7 +1021,6 @@ static void update_nested_classes(Node *n)
 
 static Node *nested_forward_declaration(const char *storage, const char *kind, String *sname, String *name, Node *cpp_opt_declarators) {
   Node *nn = 0;
-  int warned = 0;
 
   if (sname) {
     /* Add forward declaration of the nested type */
@@ -1018,16 +1061,15 @@ static Node *nested_forward_declaration(const char *storage, const char *kind, S
     }
   }
 
-  if (!GetFlag(currentOuterClass, "nested")) {
+  if (!currentOuterClass || !GetFlag(currentOuterClass, "nested")) {
     if (nn && Equal(nodeType(nn), "classforward")) {
       Node *n = nn;
-      SWIG_WARN_NODE_BEGIN(n);
-      Swig_warning(WARN_PARSE_NAMED_NESTED_CLASS, cparse_file, cparse_line,"Nested %s not currently supported (%s ignored)\n", kind, sname ? sname : name);
-      SWIG_WARN_NODE_END(n);
-      warned = 1;
-    }
-
-    if (!warned) {
+      if (!GetFlag(n, "feature:ignore")) {
+	SWIG_WARN_NODE_BEGIN(n);
+	Swig_warning(WARN_PARSE_NAMED_NESTED_CLASS, cparse_file, cparse_line,"Nested %s not currently supported (%s ignored)\n", kind, sname ? sname : name);
+	SWIG_WARN_NODE_END(n);
+      }
+    } else {
       Swig_warning(WARN_PARSE_UNNAMED_NESTED_CLASS, cparse_file, cparse_line, "Nested %s not currently supported (ignored).\n", kind);
     }
   }
@@ -1297,7 +1339,7 @@ static void mark_nodes_as_extend(Node *n) {
 %}
 
 %union {
-  char  *id;
+  const char  *id;
   List  *bases;
   struct Define {
     String *val;
@@ -1372,7 +1414,7 @@ static void mark_nodes_as_extend(Node *n) {
 %token NONID DSTAR DCNOT
 %token <intvalue> TEMPLATE
 %token <str> OPERATOR
-%token <str> COPERATOR
+%token <str> CONVERSIONOPERATOR
 %token PARSETYPE PARSEPARM PARSEPARMS
 
 %left  CAST
@@ -1414,7 +1456,7 @@ static void mark_nodes_as_extend(Node *n) {
 /* Misc */
 %type <id>       identifier;
 %type <dtype>    initializer cpp_const exception_specification;
-%type <id>       storage_class;
+%type <id>       storage_class extern_string;
 %type <pl>       parms  ptail rawparms varargs_parms ;
 %type <pl>       templateparameters templateparameterstail;
 %type <p>        parm valparm rawvalparms valparms valptail ;
@@ -1428,7 +1470,7 @@ static void mark_nodes_as_extend(Node *n) {
 %type <dtype>    definetype def_args etype default_delete deleted_definition explicit_default;
 %type <dtype>    expr exprnum exprcompound valexpr;
 %type <id>       ename ;
-%type <id>       template_decl;
+%type <id>       less_valparms_greater;
 %type <str>      type_qualifier ;
 %type <id>       type_qualifier_raw;
 %type <id>       idstring idstringopt;
@@ -1436,11 +1478,11 @@ static void mark_nodes_as_extend(Node *n) {
 %type <str>      pragma_arg;
 %type <loc>      includetype;
 %type <type>     pointer primitive_type;
-%type <decl>     declarator direct_declarator notso_direct_declarator parameter_declarator typemap_parameter_declarator;
+%type <decl>     declarator direct_declarator notso_direct_declarator parameter_declarator plain_declarator;
 %type <decl>     abstract_declarator direct_abstract_declarator ctor_end;
 %type <tmap>     typemap_type;
-%type <str>      idcolon idcolontail idcolonnt idcolontailnt idtemplate stringbrace stringbracesemi;
-%type <id>       string stringnum wstring;
+%type <str>      idcolon idcolontail idcolonnt idcolontailnt idtemplate idtemplatetemplate stringbrace stringbracesemi;
+%type <str>      string stringnum wstring;
 %type <tparms>   template_parms;
 %type <dtype>    cpp_end cpp_vend;
 %type <intvalue> rename_namewarn;
@@ -1510,7 +1552,11 @@ declaration    : swig_directive { $$ = $1; }
                | SEMI { $$ = 0; }
                | error {
                   $$ = 0;
-		  Swig_error(cparse_file, cparse_line,"Syntax error in input(1).\n");
+		  if (cparse_unknown_directive) {
+		      Swig_error(cparse_file, cparse_line, "Unknown directive '%s'.\n", cparse_unknown_directive);
+		  } else {
+		      Swig_error(cparse_file, cparse_line, "Syntax error in input(1).\n");
+		  }
 		  exit(1);
                }
 /* Out of class constructor/destructor declarations */
@@ -1526,11 +1572,11 @@ declaration    : swig_directive { $$ = $1; }
 
    This is nearly impossible to parse normally.  We just let the
    first part generate a syntax error and then resynchronize on the
-   COPERATOR token---discarding the rest of the definition. Ugh.
+   CONVERSIONOPERATOR token---discarding the rest of the definition. Ugh.
 
  */
 
-               | error COPERATOR {
+               | error CONVERSIONOPERATOR {
                   $$ = 0;
                   skip_decl();
                }
@@ -1735,7 +1781,7 @@ echo_directive : ECHO HBLOCK {
 	       }
                | ECHO string {
 		 char temp[64];
-		 String *s = NewString($2);
+		 String *s = $2;
 		 Replace(s,"$file",cparse_file, DOH_REPLACE_ANY);
 		 sprintf(temp,"%d", cparse_line);
 		 Replace(s,"$line",temp,DOH_REPLACE_ANY);
@@ -1840,7 +1886,7 @@ fragment_directive: FRAGMENT LPAREN fname COMMA kwargs RPAREN HBLOCK {
 include_directive: includetype options string BEGINFILE {
                      $1.filename = Copy(cparse_file);
 		     $1.line = cparse_line;
-		     scanner_set_location(NewString($3),1);
+		     scanner_set_location($3,1);
                      if ($2) { 
 		       String *maininput = Getattr($2, "maininput");
 		       if (maininput)
@@ -2095,7 +2141,7 @@ pragma_directive : PRAGMA pragma_lang identifier EQUAL pragma_arg {
 	      }
               ;
 
-pragma_arg    : string { $$ = NewString($1); }
+pragma_arg    : string { $$ = $1; }
               | HBLOCK { $$ = $1; }
               ;
 
@@ -2247,7 +2293,7 @@ feature_directive : FEATURE LPAREN idstring RPAREN declarator cpp_const stringbr
                     scanner_clear_rename();
                   }
                   | FEATURE LPAREN idstring COMMA stringnum RPAREN declarator cpp_const SEMI {
-                    String *val = Len($5) ? NewString($5) : 0;
+                    String *val = Len($5) ? $5 : 0;
                     new_feature($3, val, 0, $7.id, $7.type, $7.parms, $8.qualifier);
                     $$ = 0;
                     scanner_clear_rename();
@@ -2259,7 +2305,7 @@ feature_directive : FEATURE LPAREN idstring RPAREN declarator cpp_const stringbr
                     scanner_clear_rename();
                   }
                   | FEATURE LPAREN idstring COMMA stringnum featattr RPAREN declarator cpp_const SEMI {
-                    String *val = Len($5) ? NewString($5) : 0;
+                    String *val = Len($5) ? $5 : 0;
                     new_feature($3, val, $6, $8.id, $8.type, $8.parms, $9.qualifier);
                     $$ = 0;
                     scanner_clear_rename();
@@ -2273,7 +2319,7 @@ feature_directive : FEATURE LPAREN idstring RPAREN declarator cpp_const stringbr
                     scanner_clear_rename();
                   }
                   | FEATURE LPAREN idstring COMMA stringnum RPAREN SEMI {
-                    String *val = Len($5) ? NewString($5) : 0;
+                    String *val = Len($5) ? $5 : 0;
                     new_feature($3, val, 0, 0, 0, 0, 0);
                     $$ = 0;
                     scanner_clear_rename();
@@ -2285,7 +2331,7 @@ feature_directive : FEATURE LPAREN idstring RPAREN declarator cpp_const stringbr
                     scanner_clear_rename();
                   }
                   | FEATURE LPAREN idstring COMMA stringnum featattr RPAREN SEMI {
-                    String *val = Len($5) ? NewString($5) : 0;
+                    String *val = Len($5) ? $5 : 0;
                     new_feature($3, val, $6, 0, 0, 0, 0);
                     $$ = 0;
                     scanner_clear_rename();
@@ -2460,7 +2506,7 @@ tm_tail        : COMMA typemap_parm tm_tail {
                | empty { $$ = 0;}
                ;
 
-typemap_parm   : type typemap_parameter_declarator {
+typemap_parm   : type plain_declarator {
                   Parm *parm;
 		  SwigType_push($1,$2.type);
 		  $$ = new_node("typemapitem");
@@ -2504,6 +2550,7 @@ types_directive : TYPES LPAREN parms RPAREN stringbracesemi {
 template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN valparms GREATERTHAN SEMI {
                   Parm *p, *tp;
 		  Node *n;
+		  Node *outer_class = currentOuterClass;
 		  Symtab *tscope = 0;
 		  int     specialized = 0;
 		  int     variadic = 0;
@@ -2515,6 +2562,9 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
 		  /* If the class name is qualified, we need to create or lookup namespace entries */
 		  if (!inclass) {
 		    $5 = resolve_create_node_scope($5);
+		  }
+		  if (nscope_inner && Strcmp(nodeType(nscope_inner), "class") == 0) {
+		    outer_class	= nscope_inner;
 		  }
 
 		  /*
@@ -2557,6 +2607,7 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
 		  {
                     Node *nn = n;
                     Node *linklistend = 0;
+                    Node *linkliststart = 0;
                     while (nn) {
                       Node *templnode = 0;
                       if (Strcmp(nodeType(nn),"template") == 0) {
@@ -2638,7 +2689,7 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                           }
 
                           templnode = copy_node(nn);
-			  update_nested_classes(templnode); /* update classes nested withing template */
+			  update_nested_classes(templnode); /* update classes nested within template */
                           /* We need to set the node name based on name used to instantiate */
                           Setattr(templnode,"name",tname);
 			  Delete(tname);
@@ -2648,7 +2699,7 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                             Setattr(templnode,"sym:typename","1");
                           }
 			  /* for now, nested %template is allowed only in the same scope as the template declaration */
-                          if ($3 && !(nnisclass && ((currentOuterClass && (currentOuterClass != Getattr(nn, "nested:outer")))
+                          if ($3 && !(nnisclass && ((outer_class && (outer_class != Getattr(nn, "nested:outer")))
 			    ||(extendmode && current_class && (current_class != Getattr(nn, "nested:outer")))))) {
 			    /*
 			       Comment this out for 1.3.28. We need to
@@ -2658,7 +2709,7 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
 
 			       String *symname = Swig_name_make(templnode,0,$3,0,0);
 			    */
-			    String *symname = $3;
+			    String *symname = NewString($3);
                             Swig_cparse_template_expand(templnode,symname,temparms,tscope);
                             Setattr(templnode,"sym:name",symname);
                           } else {
@@ -2677,9 +2728,9 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                           Setfile(templnode,cparse_file);
                           Setline(templnode,cparse_line);
                           Delete(temparms);
-			  if (currentOuterClass) {
+			  if (outer_class && nnisclass) {
 			    SetFlag(templnode, "nested");
-			    Setattr(templnode, "nested:outer", currentOuterClass);
+			    Setattr(templnode, "nested:outer", outer_class);
 			  }
                           add_symbols_copy(templnode);
 
@@ -2712,7 +2763,11 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                               Swig_symbol_setscope(csyms);
                             }
 
-                            /* Merge in %extend methods for this class */
+                            /* Merge in %extend methods for this class.
+			       This only merges methods within %extend for a template specialized class such as
+			         template<typename T> class K {}; %extend K<int> { ... }
+			       The copy_node() call above has already added in the generic %extend methods such as
+			         template<typename T> class K {}; %extend K { ... } */
 
 			    /* !!! This may be broken.  We may have to add the
 			       %extend methods at the beginning of the class */
@@ -2755,6 +2810,8 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                         }
 
                         /* all the overloaded templated functions are added into a linked list */
+                        if (!linkliststart)
+                          linkliststart = templnode;
                         if (nscope_inner) {
                           /* non-global namespace */
                           if (templnode) {
@@ -2775,6 +2832,7 @@ template_directive: SWIGTEMPLATE LPAREN idstringopt RPAREN idcolonnt LESSTHAN va
                       }
                       nn = Getattr(nn,"sym:nextSibling"); /* repeat for overloaded templated functions. If a templated class there will never be a sibling. */
                     }
+                    update_defaultargs(linkliststart);
 		  }
 	          Swig_symbol_setscope(tscope);
 		  Delete(Namespaceprefix);
@@ -2840,10 +2898,11 @@ c_declaration   : c_decl {
 		  Swig_warning(WARN_CPP11_LAMBDA, cparse_file, cparse_line, "Lambda expressions and closures are not fully supported yet.\n");
 		  SWIG_WARN_NODE_END($$);
 		}
-                | USING idcolon EQUAL {
-		  skip_decl();
+                | USING idcolon EQUAL type plain_declarator SEMI {
 		  $$ = new_node("using");
 		  Setattr($$,"name",$2);
+		  SwigType_push($4,$5.type);
+		  Setattr($$,"uname",$4);
 		  add_symbols($$);
 		  SWIG_WARN_NODE_BEGIN($$);
 		  Swig_warning(WARN_CPP11_ALIAS_DECLARATION, cparse_file, cparse_line, "The 'using' keyword in type aliasing is not fully supported yet.\n");
@@ -2851,15 +2910,17 @@ c_declaration   : c_decl {
 
 		  $$ = 0; /* TODO - ignored for now */
 		}
-                | TEMPLATE LESSTHAN template_parms GREATERTHAN USING idcolon EQUAL identifier {
-		  skip_decl();
+                | TEMPLATE LESSTHAN template_parms GREATERTHAN USING idcolon EQUAL type plain_declarator SEMI {
 		  $$ = new_node("using");
-		  Setattr($$,"uname",$8);
 		  Setattr($$,"name",$6);
+		  SwigType_push($8,$9.type);
+		  Setattr($$,"uname",$8);
 		  add_symbols($$);
 		  SWIG_WARN_NODE_BEGIN($$);
 		  Swig_warning(WARN_CPP11_ALIAS_TEMPLATE, cparse_file, cparse_line, "The 'using' keyword in template aliasing is not fully supported yet.\n");
 		  SWIG_WARN_NODE_END($$);
+
+		  $$ = 0; /* TODO - ignored for now */
 		}
                 ;
 
@@ -2879,6 +2940,14 @@ c_decl  : storage_class type declarator initializer c_decl_tail {
 	      Setattr($$,"throws",$4.throws);
 	      Setattr($$,"throw",$4.throwf);
 	      Setattr($$,"noexcept",$4.nexcept);
+	      if ($4.val && $4.type) {
+		/* store initializer type as it might be different to the declared type */
+		SwigType *valuetype = NewSwigType($4.type);
+		if (Len(valuetype) > 0)
+		  Setattr($$,"valuetype",valuetype);
+		else
+		  Delete(valuetype);
+	      }
 	      if (!$5) {
 		if (Len(scanner_ccode)) {
 		  String *code = Copy(scanner_ccode);
@@ -2906,8 +2975,8 @@ c_decl  : storage_class type declarator initializer c_decl_tail {
                    matches that of the declaration, then we will allow it. Otherwise, delete. */
                 String *p = Swig_scopename_prefix($3.id);
 		if (p) {
-		  if ((Namespaceprefix && Strcmp(p,Namespaceprefix) == 0) ||
-		      (inclass && Strcmp(p,Classprefix) == 0)) {
+		  if ((Namespaceprefix && Strcmp(p, Namespaceprefix) == 0) ||
+		      (Classprefix && Strcmp(p, Classprefix) == 0)) {
 		    String *lstr = Swig_scopename_last($3.id);
 		    Setattr($$,"name",lstr);
 		    Delete(lstr);
@@ -2962,8 +3031,8 @@ c_decl  : storage_class type declarator initializer c_decl_tail {
 	      if (Strstr($3.id,"::")) {
                 String *p = Swig_scopename_prefix($3.id);
 		if (p) {
-		  if ((Namespaceprefix && Strcmp(p,Namespaceprefix) == 0) ||
-		      (inclass && Strcmp(p,Classprefix) == 0)) {
+		  if ((Namespaceprefix && Strcmp(p, Namespaceprefix) == 0) ||
+		      (Classprefix && Strcmp(p, Classprefix) == 0)) {
 		    String *lstr = Swig_scopename_last($3.id);
 		    Setattr($$,"name",lstr);
 		    Delete(lstr);
@@ -3016,6 +3085,15 @@ c_decl_tail    : SEMI {
                    skip_balanced('{','}');
                    $$ = 0;
                }
+               | error {
+		   $$ = 0;
+		   if (yychar == RPAREN) {
+		       Swig_error(cparse_file, cparse_line, "Unexpected ')'.\n");
+		   } else {
+		       Swig_error(cparse_file, cparse_line, "Syntax error - possibly a missing semicolon.\n");
+		   }
+		   exit(1);
+               }
               ;
 
 initializer   : def_args { 
@@ -3051,7 +3129,9 @@ initializer   : def_args {
 cpp_alternate_rettype : primitive_type { $$ = $1; }
               | TYPE_BOOL { $$ = $1; }
               | TYPE_VOID { $$ = $1; }
+/*
               | TYPE_TYPEDEF template_decl { $$ = NewStringf("%s%s",$1,$2); }
+*/
               | TYPE_RAW { $$ = $1; }
               | idcolon { $$ = $1; }
               | decltype { $$ = $1; }
@@ -3451,8 +3531,14 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 		   nscope = Getattr($<node>$, "nested:nscope");
 		   Delattr($<node>$, "nested:innerscope");
 		   Delattr($<node>$, "nested:nscope");
-		   if (nscope_inner && Strcmp(nodeType(nscope_inner), "class") == 0) /* actual parent class for this class */
-		     Setattr($$, "nested:outer", nscope_inner);
+		   if (nscope_inner && Strcmp(nodeType(nscope_inner), "class") == 0) { /* actual parent class for this class */
+		     Node* forward_declaration = Swig_symbol_clookup_no_inherit(Getattr($<node>$,"name"), Getattr(nscope_inner, "symtab"));
+		     if (forward_declaration) {
+		       Setattr($<node>$, "access", Getattr(forward_declaration, "access"));
+		     }
+		     Setattr($<node>$, "nested:outer", nscope_inner);
+		     SetFlag($<node>$, "nested");
+                   }
 		   if (!currentOuterClass)
 		     inclass = 0;
 		   cscope = Getattr($$, "prev_symtab");
@@ -3531,6 +3617,8 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 		   } else if (nscope_inner) {
 		     /* this is tricky */
 		     /* we add the declaration in the original namespace */
+		     if (Strcmp(nodeType(nscope_inner), "class") == 0 && cparse_cplusplus && ignore_nested_classes && !GetFlag($$, "feature:flatnested"))
+		       $$ = nested_forward_declaration($1, $2, $3, Copy($3), $9);
 		     appendChild(nscope_inner, $$);
 		     Swig_symbol_setscope(Getattr(nscope_inner, "symtab"));
 		     Delete(Namespaceprefix);
@@ -3580,6 +3668,7 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 		   Swig_symbol_setscope(cscope);
 		   Delete(Namespaceprefix);
 		   Namespaceprefix = Swig_symbol_qualifiedscopename(0);
+		   Classprefix = currentOuterClass ? Getattr(currentOuterClass, "Classprefix") : 0;
 	       }
 
 /* An unnamed struct, possibly with a typedef */
@@ -3616,7 +3705,7 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 	       cparse_start_line = cparse_line;
 	       currentOuterClass = $<node>$;
 	       inclass = 1;
-	       Classprefix = NewStringEmpty();
+	       Classprefix = 0;
 	       Delete(Namespaceprefix);
 	       Namespaceprefix = Swig_symbol_qualifiedscopename(0);
 	       /* save the structure declaration to make a typedef for it later*/
@@ -3629,6 +3718,7 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 	       String *name = 0;
 	       Node *n;
 	       Classprefix = 0;
+	       (void)$<node>5;
 	       $$ = currentOuterClass;
 	       currentOuterClass = Getattr($$, "nested:outer");
 	       if (!currentOuterClass)
@@ -3726,6 +3816,7 @@ cpp_class_decl  : storage_class cpptype idcolon inherit LBRACE {
 		 Delete($$);
 		 $$ = $6; /* pass member list to outer class/namespace (instead of self)*/
 	       }
+	       Classprefix = currentOuterClass ? Getattr(currentOuterClass, "Classprefix") : 0;
               }
              ;
 
@@ -4009,7 +4100,9 @@ cpp_template_decl : TEMPLATE LESSTHAN template_parms GREATERTHAN {
 			Swig_symbol_setscope(cscope);
 			Delete(Namespaceprefix);
 			Namespaceprefix = Swig_symbol_qualifiedscopename(0);
-			if (error) $$ = 0;
+			if (error || (nscope_inner && Strcmp(nodeType(nscope_inner), "class") == 0)) {
+			  $$ = 0;
+			}
 			if (currentOuterClass)
 			  template_parameters = Getattr(currentOuterClass, "template_parameters");
 			else
@@ -4408,7 +4501,7 @@ cpp_destructor_decl : NOT idtemplate LPAREN parms RPAREN cpp_end {
 
 
 /* C++ type conversion operator */
-cpp_conversion_operator : storage_class COPERATOR type pointer LPAREN parms RPAREN cpp_vend {
+cpp_conversion_operator : storage_class CONVERSIONOPERATOR type pointer LPAREN parms RPAREN cpp_vend {
                  $$ = new_node("cdecl");
                  Setattr($$,"type",$3);
 		 Setattr($$,"name",$2);
@@ -4423,7 +4516,7 @@ cpp_conversion_operator : storage_class COPERATOR type pointer LPAREN parms RPAR
 		 Setattr($$,"conversion_operator","1");
 		 add_symbols($$);
               }
-               | storage_class COPERATOR type AND LPAREN parms RPAREN cpp_vend {
+               | storage_class CONVERSIONOPERATOR type AND LPAREN parms RPAREN cpp_vend {
 		 SwigType *decl;
                  $$ = new_node("cdecl");
                  Setattr($$,"type",$3);
@@ -4440,7 +4533,7 @@ cpp_conversion_operator : storage_class COPERATOR type pointer LPAREN parms RPAR
 		 Setattr($$,"conversion_operator","1");
 		 add_symbols($$);
 	       }
-               | storage_class COPERATOR type LAND LPAREN parms RPAREN cpp_vend {
+               | storage_class CONVERSIONOPERATOR type LAND LPAREN parms RPAREN cpp_vend {
 		 SwigType *decl;
                  $$ = new_node("cdecl");
                  Setattr($$,"type",$3);
@@ -4458,7 +4551,7 @@ cpp_conversion_operator : storage_class COPERATOR type pointer LPAREN parms RPAR
 		 add_symbols($$);
 	       }
 
-               | storage_class COPERATOR type pointer AND LPAREN parms RPAREN cpp_vend {
+               | storage_class CONVERSIONOPERATOR type pointer AND LPAREN parms RPAREN cpp_vend {
 		 SwigType *decl;
                  $$ = new_node("cdecl");
                  Setattr($$,"type",$3);
@@ -4477,7 +4570,7 @@ cpp_conversion_operator : storage_class COPERATOR type pointer LPAREN parms RPAR
 		 add_symbols($$);
 	       }
 
-              | storage_class COPERATOR type LPAREN parms RPAREN cpp_vend {
+              | storage_class CONVERSIONOPERATOR type LPAREN parms RPAREN cpp_vend {
 		String *t = NewStringEmpty();
 		$$ = new_node("cdecl");
 		Setattr($$,"type",$3);
@@ -4614,7 +4707,9 @@ anon_bitfield_type : primitive_type { $$ = $1;
                 }
                | TYPE_BOOL { $$ = $1; }
                | TYPE_VOID { $$ = $1; }
+/*
                | TYPE_TYPEDEF template_decl { $$ = NewStringf("%s%s",$1,$2); }
+*/
                | TYPE_RAW { $$ = $1; }
 
                | idcolon {
@@ -4625,35 +4720,32 @@ anon_bitfield_type : primitive_type { $$ = $1;
 /* ====================================================================== 
  *                       PRIMITIVES
  * ====================================================================== */
-
-storage_class  : EXTERN { $$ = "extern"; }
-               | EXTERN string {
-                   if (strcmp($2,"C") == 0) {
+extern_string :  EXTERN string {
+                   if (Strcmp($2,"C") == 0) {
 		     $$ = "externc";
-                   } else if (strcmp($2,"C++") == 0) {
+                   } else if (Strcmp($2,"C++") == 0) {
 		     $$ = "extern";
 		   } else {
 		     Swig_warning(WARN_PARSE_UNDEFINED_EXTERN,cparse_file, cparse_line,"Unrecognized extern type \"%s\".\n", $2);
 		     $$ = 0;
 		   }
                }
-               | EXTERN string THREAD_LOCAL {
-                   if (strcmp($2,"C") == 0) {
-		     $$ = "externc thread_local";
-                   } else if (strcmp($2,"C++") == 0) {
-		     $$ = "extern thread_local";
-		   } else {
-		     Swig_warning(WARN_PARSE_UNDEFINED_EXTERN,cparse_file, cparse_line,"Unrecognized extern type \"%s\".\n", $2);
-		     $$ = 0;
-		   }
-               }
+	       ;
+
+storage_class  : EXTERN { $$ = "extern"; }
+	       | extern_string { $$ = $1; }
+	       | extern_string THREAD_LOCAL { $$ = "thread_local"; }
+	       | extern_string TYPEDEF { $$ = "typedef"; }
                | STATIC { $$ = "static"; }
                | TYPEDEF { $$ = "typedef"; }
                | VIRTUAL { $$ = "virtual"; }
                | FRIEND { $$ = "friend"; }
                | EXPLICIT { $$ = "explicit"; }
                | CONSTEXPR { $$ = "constexpr"; }
+               | EXPLICIT CONSTEXPR { $$ = "explicit constexpr"; }
+               | CONSTEXPR EXPLICIT { $$ = "explicit constexpr"; }
                | STATIC CONSTEXPR { $$ = "static constexpr"; }
+               | CONSTEXPR STATIC { $$ = "static constexpr"; }
                | THREAD_LOCAL { $$ = "thread_local"; }
                | THREAD_LOCAL STATIC { $$ = "static thread_local"; }
                | STATIC THREAD_LOCAL { $$ = "static thread_local"; }
@@ -4854,7 +4946,7 @@ parameter_declarator : declarator def_args {
             }
             ;
 
-typemap_parameter_declarator : declarator {
+plain_declarator : declarator {
                  $$ = $1;
 		 if (SwigType_isfunction($1.type)) {
 		   Delete(SwigType_pop_function($1.type));
@@ -5564,7 +5656,9 @@ type_right     : primitive_type { $$ = $1;
                }
                | TYPE_BOOL { $$ = $1; }
                | TYPE_VOID { $$ = $1; }
+/*
                | TYPE_TYPEDEF template_decl { $$ = NewStringf("%s%s",$1,$2); }
+*/
                | c_enum_key idcolon { $$ = NewStringf("enum %s", $2); }
                | TYPE_RAW { $$ = $1; }
 
@@ -5747,17 +5841,6 @@ definetype     : { /* scanner_check_typedef(); */ } expr {
                 | default_delete {
 		  $$ = $1;
 		}
-/*
-                | string {
-                   $$.val = NewString($1);
-		   $$.rawval = NewStringf("\"%(escape)s\"",$$.val);
-                   $$.type = T_STRING;
-		   $$.bitfield = 0;
-		   $$.throws = 0;
-		   $$.throwf = 0;
-		   $$.nexcept = 0;
-		}
-*/
                 ;
 
 default_delete : deleted_definition {
@@ -5880,7 +5963,7 @@ expr           : valexpr { $$ = $1; }
 
 valexpr        : exprnum { $$ = $1; }
                | string {
-		    $$.val = NewString($1);
+		    $$.val = $1;
                     $$.type = T_STRING;
                }
                | SIZEOF LPAREN type parameter_declarator RPAREN {
@@ -5895,7 +5978,7 @@ valexpr        : exprnum { $$ = $1; }
                }
                | exprcompound { $$ = $1; }
 	       | wstring {
-		    $$.val = NewString($1);
+		    $$.val = $1;
 		    $$.rawval = NewStringf("L\"%s\"", $$.val);
                     $$.type = T_WSTRING;
 	       }
@@ -6070,11 +6153,11 @@ exprcompound   : expr PLUS expr {
 	       }
 /* Sadly this causes 2 reduce-reduce conflicts with templates.  FIXME resolve these.
                | expr GREATERTHAN expr {
-		 $$.val = NewStringf("%s < %s", $1.val, $3.val);
+		 $$.val = NewStringf("%s > %s", $1.val, $3.val);
 		 $$.type = cparse_cplusplus ? T_BOOL : T_INT;
 	       }
                | expr LESSTHAN expr {
-		 $$.val = NewStringf("%s > %s", $1.val, $3.val);
+		 $$.val = NewStringf("%s < %s", $1.val, $3.val);
 		 $$.type = cparse_cplusplus ? T_BOOL : T_INT;
 	       }
 */
@@ -6390,14 +6473,13 @@ mem_initializer : idcolon LPAREN {
 		}
                 ;
 
-template_decl : LESSTHAN valparms GREATERTHAN { 
+less_valparms_greater : LESSTHAN valparms GREATERTHAN {
                      String *s = NewStringEmpty();
                      SwigType_add_template(s,$2);
                      $$ = Char(s);
 		     scanner_last_id(1);
-                 }
-               | empty { $$ = (char*)"";  }
-               ;
+                }
+		;
 
 /* Identifiers including the C++11 identifiers with special meaning */
 identifier     : ID { $$ = $1; }
@@ -6406,8 +6488,8 @@ identifier     : ID { $$ = $1; }
 	       ;
 
 idstring       : identifier { $$ = $1; }
-               | default_delete { $$ = $1.val; }
-               | string { $$ = $1; }
+               | default_delete { $$ = Char($1.val); }
+               | string { $$ = Char($1); }
                ;
 
 idstringopt    : idstring { $$ = $1; }
@@ -6419,35 +6501,38 @@ idcolon        : idtemplate idcolontail {
 		  if (!$$) $$ = NewStringf("%s%s", $1,$2);
       	          Delete($2);
                }
-               | NONID DCOLON idtemplate idcolontail { 
+               | NONID DCOLON idtemplatetemplate idcolontail {
 		 $$ = NewStringf("::%s%s",$3,$4);
                  Delete($4);
                }
                | idtemplate {
 		 $$ = NewString($1);
    	       }
-               | NONID DCOLON idtemplate {
+               | NONID DCOLON idtemplatetemplate {
 		 $$ = NewStringf("::%s",$3);
                }
                | OPERATOR {
-                 $$ = NewString($1);
+                 $$ = NewStringf("%s", $1);
+	       }
+               | OPERATOR less_valparms_greater {
+                 $$ = NewStringf("%s%s", $1, $2);
 	       }
                | NONID DCOLON OPERATOR {
                  $$ = NewStringf("::%s",$3);
                }
                ;
 
-idcolontail    : DCOLON idtemplate idcolontail {
+idcolontail    : DCOLON idtemplatetemplate idcolontail {
                    $$ = NewStringf("::%s%s",$2,$3);
 		   Delete($3);
                }
-               | DCOLON idtemplate {
+               | DCOLON idtemplatetemplate {
                    $$ = NewStringf("::%s",$2);
                }
                | DCOLON OPERATOR {
                    $$ = NewStringf("::%s",$2);
                }
-/*               | DCOLON COPERATOR {
+/*               | DCOLON CONVERSIONOPERATOR {
                  $$ = NewString($2);                 
 		 } */
 
@@ -6457,12 +6542,20 @@ idcolontail    : DCOLON idtemplate idcolontail {
                ;
 
 
-idtemplate    : identifier template_decl {
-                  $$ = NewStringf("%s%s",$1,$2);
-		  /*		  if (Len($2)) {
-		    scanner_last_id(1);
-		    } */
-              }
+idtemplate    : identifier {
+		$$ = NewStringf("%s", $1);
+	      }
+	      | identifier less_valparms_greater {
+		$$ = NewStringf("%s%s", $1, $2);
+	      }
+              ;
+
+idtemplatetemplate : idtemplate {
+		$$ = $1;
+	      }
+	      | TEMPLATE identifier less_valparms_greater {
+		$$ = NewStringf("%s%s", $2, $3);
+	      }
               ;
 
 /* Identifier, but no templates */
@@ -6506,30 +6599,24 @@ idcolontailnt   : DCOLON identifier idcolontailnt {
 
 /* Concatenated strings */
 string         : string STRING { 
-                   $$ = (char *) malloc(strlen($1)+strlen($2)+1);
-                   strcpy($$,$1);
-                   strcat($$,$2);
+                   $$ = NewStringf("%s%s", $1, $2);
                }
-               | STRING { $$ = $1;}
+               | STRING { $$ = NewString($1);}
                ; 
 /* Concatenated wide strings: L"str1" L"str2" */
 wstring         : wstring WSTRING {
-                   $$ = (char *) malloc(strlen($1)+strlen($2)+1);
-                   strcpy($$,$1);
-                   strcat($$,$2);
+                   $$ = NewStringf("%s%s", $1, $2);
                }
 /* Concatenated wide string and normal string literal: L"str1" "str2" */
 /*not all the compilers support this concatenation mode, so perhaps better to postpone it*/
                /*| wstring STRING { here $2 comes unescaped, we have to escape it back first via NewStringf("%(escape)s)"
-                   $$ = (char *) malloc(strlen($1)+strlen($2)+1);
-                   strcpy($$,$1);
-                   strcat($$,$2);
+                   $$ = NewStringf("%s%s", $1, $2);
 	       }*/
-               | WSTRING { $$ = $1;}
+               | WSTRING { $$ = NewString($1);}
                ;
 
 stringbrace    : string {
-		 $$ = NewString($1);
+		 $$ = $1;
                }
                | LBRACE {
                   skip_balanced('{','}');

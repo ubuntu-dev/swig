@@ -472,8 +472,7 @@ public:
 
     Swig_banner(f_begin);
 
-    Printf(f_runtime, "\n");
-    Printf(f_runtime, "#define SWIGD\n");
+    Printf(f_runtime, "\n\n#ifndef SWIGD\n#define SWIGD\n#endif\n\n");
 
     if (directorsEnabled()) {
       Printf(f_runtime, "#define SWIG_DIRECTORS\n");
@@ -508,6 +507,7 @@ public:
 
     if (directorsEnabled()) {
       // Insert director runtime into the f_runtime file (before %header section).
+      Swig_insert_file("director_common.swg", f_runtime);
       Swig_insert_file("director.swg", f_runtime);
     }
 
@@ -803,23 +803,23 @@ public:
     // Emit each enum item.
     Language::enumDeclaration(n);
 
-    if (!GetFlag(n, "nonempty")) {
-      // Do not wrap empty enums; the resulting D code would be illegal.
-      Delete(proxy_enum_code);
-      return SWIG_NOWRAP;
-    }
-
-    // Finish the enum.
-    if (typemap_lookup_type) {
-      Printv(proxy_enum_code,
-	lookupCodeTypemap(n, "dcode", typemap_lookup_type, WARN_NONE), // Extra D code
-	"\n}\n", NIL);
+    if (GetFlag(n, "nonempty")) {
+      // Finish the enum.
+      if (typemap_lookup_type) {
+	Printv(proxy_enum_code,
+	  lookupCodeTypemap(n, "dcode", typemap_lookup_type, WARN_NONE), // Extra D code
+	  "\n}\n", NIL);
+      } else {
+	// Handle anonymous enums.
+	Printv(proxy_enum_code, "\n}\n", NIL);
+      }
+      Replaceall(proxy_enum_code, "$dclassname", symname);
     } else {
-      // Handle anonymous enums.
-      Printv(proxy_enum_code, "\n}\n", NIL);
+      // D enum declarations must have at least one member to be legal, so emit
+      // an alias to int instead (their ctype/imtype is always int).
+      Delete(proxy_enum_code);
+      proxy_enum_code = NewStringf("\nalias int %s;\n", symname);
     }
-
-    Replaceall(proxy_enum_code, "$dclassname", symname);
 
     const String* imports =
       lookupCodeTypemap(n, "dimports", typemap_lookup_type, WARN_NONE);
@@ -910,7 +910,7 @@ public:
       const char *val = Equal(Getattr(n, "enumvalue"), "true") ? "1" : "0";
       Setattr(n, "enumvalue", val);
     } else if (swigtype == T_CHAR) {
-      String *val = NewStringf("'%s'", Getattr(n, "enumvalue"));
+      String *val = NewStringf("'%(escape)s'", Getattr(n, "enumvalue"));
       Setattr(n, "enumvalue", val);
       Delete(val);
     }
@@ -1423,6 +1423,7 @@ public:
 
     String *constants_code = NewString("");
     SwigType *t = Getattr(n, "type");
+    SwigType *valuetype = Getattr(n, "valuetype");
     ParmList *l = Getattr(n, "parms");
 
     // Attach the non-standard typemaps to the parameter list.
@@ -1470,16 +1471,21 @@ public:
       Printf(constants_code, "%s;\n", override_value);
     } else {
       // Just take the value from the C definition and hope it compiles in D.
-      String* value = Getattr(n, "wrappedasconstant") ?
-	Getattr(n, "staticmembervariableHandler:value") : Getattr(n, "value");
-
-      // Add the stripped quotes back in.
-      if (SwigType_type(t) == T_STRING) {
-	Printf(constants_code, "\"%s\";\n", value);
-      } else if (SwigType_type(t) == T_CHAR) {
-	Printf(constants_code, "\'%s\';\n", value);
+      if (Getattr(n, "wrappedasconstant")) {
+	if (SwigType_type(valuetype) == T_CHAR)
+          Printf(constants_code, "\'%(escape)s\';\n", Getattr(n, "staticmembervariableHandler:value"));
+	else
+          Printf(constants_code, "%s;\n", Getattr(n, "staticmembervariableHandler:value"));
       } else {
-	Printf(constants_code, "%s;\n", value);
+	// Add the stripped quotes back in.
+	String* value = Getattr(n, "value");
+	if (SwigType_type(t) == T_STRING) {
+	  Printf(constants_code, "\"%s\";\n", value);
+	} else if (SwigType_type(t) == T_CHAR) {
+	  Printf(constants_code, "\'%s\';\n", value);
+	} else {
+	  Printf(constants_code, "%s;\n", value);
+	}
       }
     }
 
@@ -1701,20 +1707,9 @@ public:
     String *null_attribute = 0;
     // Now write code to make the function call
     if (!native_function_flag) {
-      if (Cmp(nodeType(n), "constant") == 0) {
-	// Wrapping a constant hack
-	Swig_save("functionWrapper", n, "wrap:action", NIL);
-
-	// below based on Swig_VargetToFunction()
-	SwigType *ty = Swig_wrapped_var_type(Getattr(n, "type"), use_naturalvar_mode(n));
-	Setattr(n, "wrap:action", NewStringf("%s = (%s) %s;", Swig_cresult_name(), SwigType_lstr(ty, 0), Getattr(n, "value")));
-      }
 
       Swig_director_emit_dynamic_cast(n, f);
       String *actioncode = emit_action(n);
-
-      if (Cmp(nodeType(n), "constant") == 0)
-	Swig_restore(n);
 
       /* Return value if necessary  */
       if ((tm = Swig_typemap_lookup_out("out", n, Swig_cresult_name(), f, actioncode))) {
@@ -2594,7 +2589,7 @@ private:
     const_String_or_char_ptr wrapper_function_name) {
 
     // TODO: Add support for static linking here.
-    Printf(im_dmodule_code, "extern(C) %s function%s %s;\n", return_type,
+    Printf(im_dmodule_code, "SwigExternC!(%s function%s) %s;\n", return_type,
       parameters, d_name);
     Printv(wrapper_loader_bind_code, wrapper_loader_bind_command, NIL);
     Replaceall(wrapper_loader_bind_code, "$function", d_name);
@@ -2850,7 +2845,7 @@ private:
       // polymorphic call or an explicit method call. Needed to prevent infinite
       // recursion when calling director methods.
       Node *explicit_n = Getattr(n, "explicitcallnode");
-      if (explicit_n) {
+      if (explicit_n && Swig_directorclass(getCurrentClass())) {
 	String *ex_overloaded_name = getOverloadedName(explicit_n);
 	String *ex_intermediary_function_name = Swig_name_member(getNSpace(), proxy_class_name, ex_overloaded_name);
 
@@ -3134,28 +3129,23 @@ private:
       List *baselist = Getattr(n, "bases");
       if (baselist) {
 	Iterator base = First(baselist);
-	while (base.item && GetFlag(base.item, "feature:ignore")) {
-	  base = Next(base);
-	}
-	if (base.item) {
-	  basenode = base.item;
-	  c_baseclassname = Getattr(base.item, "name");
-	  basename = createProxyName(c_baseclassname);
-	  if (basename)
-	    c_baseclass = SwigType_namestr(Getattr(base.item, "name"));
-	  base = Next(base);
-	  /* Warn about multiple inheritance for additional base class(es) */
-	  while (base.item) {
-	    if (GetFlag(base.item, "feature:ignore")) {
-	      base = Next(base);
-	      continue;
+	while (base.item) {
+	  if (!GetFlag(base.item, "feature:ignore")) {
+	    String *baseclassname = Getattr(base.item, "name");
+	    if (!c_baseclassname) {
+	      basenode = base.item;
+	      c_baseclassname = baseclassname;
+	      basename = createProxyName(c_baseclassname);
+	      if (basename)
+		c_baseclass = SwigType_namestr(baseclassname);
+	    } else {
+	      /* Warn about multiple inheritance for additional base class(es) */
+	      String *proxyclassname = Getattr(n, "classtypeobj");
+	      Swig_warning(WARN_D_MULTIPLE_INHERITANCE, Getfile(n), Getline(n),
+		  "Base %s of class %s ignored: multiple inheritance is not supported in D.\n", SwigType_namestr(baseclassname), SwigType_namestr(proxyclassname));
 	    }
-	    String *proxyclassname = SwigType_str(Getattr(n, "classtypeobj"), 0);
-	    String *baseclassname = SwigType_str(Getattr(base.item, "name"), 0);
-	    Swig_warning(WARN_D_MULTIPLE_INHERITANCE, Getfile(n), Getline(n),
-	      "Base %s of class %s ignored: multiple inheritance is not supported in D.\n", baseclassname, proxyclassname);
-	    base = Next(base);
 	  }
+	  base = Next(base);
 	}
       }
     }
@@ -3180,7 +3170,7 @@ private:
       }
     } else if (basename && Len(pure_baseclass) > 0) {
       Swig_warning(WARN_D_MULTIPLE_INHERITANCE, Getfile(n), Getline(n),
-	"Warning for %s proxy: Base class %s ignored. Multiple inheritance is not supported in D. "
+	"Warning for %s, base class %s ignored. Multiple inheritance is not supported in D. "
 	"Perhaps you need one of the 'replace' or 'notderived' attributes in the dbase typemap?\n", typemap_lookup_type, pure_baseclass);
     }
 
@@ -3339,45 +3329,33 @@ private:
   /* ---------------------------------------------------------------------------
    * D::writeClassUpcast()
    * --------------------------------------------------------------------------- */
-  void writeClassUpcast(Node *n, const String* d_class_name,
-    String* c_class_name, String* c_base_name) {
+  void writeClassUpcast(Node *n, const String* d_class_name, String* c_class_name, String* c_base_name) {
 
-    String *smartptr = Getattr(n, "feature:smartptr");
-    String *upcast_name = Swig_name_member(getNSpace(), d_class_name,
-      (smartptr != 0 ? "SmartPtrUpcast" : "Upcast"));
-
+    SwigType *smart = Swig_cparse_smartptr(n);
+    String *upcast_name = Swig_name_member(getNSpace(), d_class_name, (smart != 0 ? "SmartPtrUpcast" : "Upcast"));
     String *upcast_wrapper_name = Swig_name_wrapper(upcast_name);
 
     writeImDModuleFunction(upcast_name, "void*", "(void* objectRef)",
       upcast_wrapper_name);
 
-    if (smartptr) {
-      SwigType *spt = Swig_cparse_type(smartptr);
-      if (spt) {
-	SwigType *smart = SwigType_typedef_resolve_all(spt);
-	Delete(spt);
-	SwigType *bsmart = Copy(smart);
-	SwigType *rclassname = SwigType_typedef_resolve_all(c_class_name);
-	SwigType *rbaseclass = SwigType_typedef_resolve_all(c_base_name);
-	Replaceall(bsmart, rclassname, rbaseclass);
-	Delete(rclassname);
-	Delete(rbaseclass);
-	String *smartnamestr = SwigType_namestr(smart);
-	String *bsmartnamestr = SwigType_namestr(bsmart);
-	Printv(upcasts_code,
-	  "SWIGEXPORT ", bsmartnamestr, " * ", upcast_wrapper_name,
-	    "(", smartnamestr, " *objectRef) {\n",
-	  "    return objectRef ? new ", bsmartnamestr, "(*objectRef) : 0;\n"
-	  "}\n",
-	  "\n", NIL);
-	Delete(bsmartnamestr);
-	Delete(smartnamestr);
-	Delete(bsmart);
-      } else {
-	Swig_error(Getfile(n), Getline(n),
-	  "Invalid type (%s) in 'smartptr' feature for class %s.\n",
-	  smartptr, c_class_name);
-      }
+    if (smart) {
+      SwigType *bsmart = Copy(smart);
+      SwigType *rclassname = SwigType_typedef_resolve_all(c_class_name);
+      SwigType *rbaseclass = SwigType_typedef_resolve_all(c_base_name);
+      Replaceall(bsmart, rclassname, rbaseclass);
+      Delete(rclassname);
+      Delete(rbaseclass);
+      String *smartnamestr = SwigType_namestr(smart);
+      String *bsmartnamestr = SwigType_namestr(bsmart);
+      Printv(upcasts_code,
+	"SWIGEXPORT ", bsmartnamestr, " * ", upcast_wrapper_name,
+	  "(", smartnamestr, " *objectRef) {\n",
+	"    return objectRef ? new ", bsmartnamestr, "(*objectRef) : 0;\n"
+	"}\n",
+	"\n", NIL);
+      Delete(bsmartnamestr);
+      Delete(smartnamestr);
+      Delete(bsmart);
     } else {
       Printv(upcasts_code,
 	"SWIGEXPORT ", c_base_name, " * ", upcast_wrapper_name,
@@ -3392,6 +3370,7 @@ private:
 
     Delete(upcast_name);
     Delete(upcast_wrapper_name);
+    Delete(smart);
   }
 
   /* ---------------------------------------------------------------------------

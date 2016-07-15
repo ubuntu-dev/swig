@@ -23,7 +23,7 @@ struct RetStruct {
 
 // Write a typemap that calls C++ by converting in and out of JSON.
 
-%go_import("encoding/json", "bytes", "encoding/binary")
+%go_import("encoding/json", "bytes", "encoding/binary", "reflect", "unsafe")
 
 %insert(go_header)
 %{
@@ -56,16 +56,36 @@ type In json.Marshaler
 
 %typemap(imtype) RetStruct "string"
 
-%typemap(out) RetStruct
+%typemap(out,fragment="AllocateString") RetStruct
 %{
-  $result = _swig_makegostring($1.str.data(), $1.str.length());
+  $result = Swig_AllocateString($1.str.data(), $1.str.length());
 %}
 
-%typemap(goout) RetStruct
+%typemap(goout,fragment="CopyString") RetStruct
 %{
-	if err := json.Unmarshal([]byte($1), &$result); err != nil {
+	if err := json.Unmarshal([]byte(swigCopyString($1)), &$result); err != nil {
 		panic(err)
 	}
+%}
+
+%typemap(gotype) RetStruct* "*map[string]interface{}"
+
+%typemap(imtype) RetStruct* "*string"
+
+%typemap(out,fragment="AllocateString") RetStruct*
+%{
+  $result = (_gostring_*)malloc(sizeof(_gostring_));
+  *$result = Swig_AllocateString($1->str.data(), $1->str.length());
+%}
+
+%typemap(goout,fragment="CopyString") RetStruct*
+%{
+	defer Swig_free(uintptr(unsafe.Pointer($1)))
+	var rm map[string]interface{}
+	if err := json.Unmarshal([]byte(swigCopyString(*$1)), &rm); err != nil {
+		panic(err)
+	}
+	$result = &rm
 %}
 
 %inline
@@ -86,6 +106,10 @@ RetStruct Same(MyStruct s)
 struct MyArray {
   std::vector<std::string> strings;
 };
+
+void* Allocate(int n) {
+  return new char[n];
+}
 
 static uint64_t getuint64(const char* s) {
   uint64_t ret = 0;
@@ -121,7 +145,12 @@ static void putuint64(std::string *s, size_t off, uint64_t v) {
 			buf.Write(b[:])
 			buf.WriteString(s)
 		}
-		str := buf.String()
+		bb := buf.Bytes()
+		p := Allocate(len(bb))
+		copy((*[1<<15]byte)(unsafe.Pointer(p))[:len(bb)], bb)
+		var str string
+		(*reflect.StringHeader)(unsafe.Pointer(&str)).Data = uintptr(unsafe.Pointer(p))
+		(*reflect.StringHeader)(unsafe.Pointer(&str)).Len = len(bb)
 		$result = &str
 	}
 %}
@@ -146,7 +175,7 @@ static void putuint64(std::string *s, size_t off, uint64_t v) {
 %}
 
 // Pack the vector into a string.
-%typemap(argout) MyArray*
+%typemap(argout,fragment="AllocateString") MyArray*
 %{
   {
     size_t tot = 8;
@@ -164,15 +193,15 @@ static void putuint64(std::string *s, size_t off, uint64_t v) {
       str.replace(off, p->size(), *p);
       off += p->size();
     }
-    *$input = _swig_makegostring(str.data(), str.size());
+    *$input = Swig_AllocateString(str.data(), str.size());
   }
 %}
 
 // Unpack the string into a []string.
-%typemap(goargout) MyArray*
+%typemap(goargout,fragment="CopyString") MyArray*
 %{
 	{
-		str := *$input
+		str := swigCopyString(*$input)
 		bin := binary.LittleEndian
 		size := bin.Uint64([]byte(str[:8]))
 		str = str[8:]
@@ -196,4 +225,19 @@ void DoubleArray(MyArray* v) {
     v->strings.push_back(v->strings[i] + v->strings[i]);
   }
 }
+%}
+
+%inline
+%{
+class C1 {
+ public:
+  RetStruct* M() {
+    RetStruct* r = new RetStruct;
+    r->str = "{\"ID\":1}";
+    return r;
+  }
+};
+
+class C2 : public C1 {
+};
 %}

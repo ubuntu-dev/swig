@@ -48,6 +48,7 @@ eswig_SOURCES =	CParse/cscanner.c		\
 		Modules/forth.cxx		\
 		Modules/go.cxx			\
 		Modules/guile.cxx		\
+		Modules/interface.cxx		\
 		Modules/java.cxx		\
 		Modules/javascript.cxx		\
 		Modules/lang.cxx		\
@@ -67,6 +68,7 @@ eswig_SOURCES =	CParse/cscanner.c		\
 		Modules/r.cxx			\
 		Modules/ruby.cxx		\
 		Modules/s-exp.cxx		\
+		Modules/scilab.cxx		\
 		Modules/swigmain.cxx		\
 		Modules/tcl8.cxx		\
 		Modules/typepass.cxx		\
