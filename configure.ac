@@ -2441,6 +2441,30 @@ fi
 AC_SUBST(CLISPBIN)
 
 #----------------------------------------------------------------
+# Look for Forth
+#----------------------------------------------------------------
+
+GFORTH=
+
+AC_ARG_WITH(forth, AS_HELP_STRING([--without-forth], [Disable Forth]), [with_forth="$withval"], [with_forth="$alllang_default"])
+
+# First, check for "--without-forth" or "--with-forth=no".
+if test x"${with_forth}" = xno; then
+  AC_MSG_NOTICE([Disabling Forth])
+  FORTH=
+else
+  FORTH=1
+
+  #----------------------------------------------------------------
+  # Look for GNU Forth which is the default Forth system
+  #----------------------------------------------------------------
+  AC_CHECK_PROGS(GFORTH, [gforth])
+fi
+
+AC_SUBST(GFORTH)
+AC_SUBST(FORTH)
+
+#----------------------------------------------------------------
 # Look for GNU R
 #----------------------------------------------------------------
 
