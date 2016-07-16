@@ -1,3 +1,50 @@
-# no test suite yet, but needs a clean target
+#######################################################################
+# Makefile for forth test-suite
+#######################################################################
+
+LANGUAGE     = forth
+FORTHBIN     = @GFORTH@
+SCRIPTSUFFIX = _runme.4th
+
+srcdir       = @srcdir@
+top_srcdir   = @top_srcdir@
+top_builddir = @top_builddir@
+
+
+include $(srcdir)/../common.mk
+
+SWIGOPT = -no-sectioncomments -stackcomments -use-structs
+TARGETSUFFIX = .4th
+
+# Rules for the different types of tests
+%.ctest: %.4th
+	$(setup)
+	+$(swig_and_compile_c)
+	$(run_testcase)
+
+# a file is found which has _runme.4th appended after the testcase name.
+run_testcase = \
+	if [ -f $(SCRIPTDIR)/$(SCRIPTPREFIX)$*$(SCRIPTSUFFIX) ]; then \
+	  $(RUNTOOL) $(FORTHBIN) $(SCRIPTDIR)/$(SCRIPTPREFIX)$*$(SCRIPTSUFFIX); \
+	fi
+
+          
+%.4th: %.4thx
+	./$< -gforth > $@ 
+
+%.4thx: %_wrap.c
+	$(CC) -o $@ $<
+
+%.cpptest:
+	@exit 0
+
+%.multicpptest:
+	@exit 0
+
+# Clean: (does nothing, we dont generate extra lua code)
+%.clean:
+	@exit 0
 
 clean:
+	@exit 0
+

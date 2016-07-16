@@ -7,10 +7,10 @@ OPTIONS		= -forth -no-sectioncomments -stackcomments -use-structs
 $(OUTPUT).fs: $(OUTPUT).fsx
 	./$(OUTPUT).fsx -gforth > $(OUTPUT).fs
 
-$(OUTPUT).fsx: $(OUTPUT).fsi
+$(OUTPUT).fsx: $(OUTPUT)-fsi.c
 	$(CC) -o $(OUTPUT).fsx $(OUTPUT)-fsi.c
 
-$(OUTPUT).fsi:
+$(OUTPUT)-fsi.c:
 	$(SWIG) $(OPTIONS) -o $(OUTPUT)-fsi.c $(INTERFACE)
 
 debug-tree:
