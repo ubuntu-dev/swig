@@ -13,7 +13,7 @@ top_builddir = @top_builddir@
 
 include $(srcdir)/../common.mk
 
-SWIGOPT = -no-sectioncomments -stackcomments -use-structs
+SWIGOPT += -no-sectioncomments -stackcomments -use-structs
 TARGETSUFFIX = .4th
 
 # Rules for the different types of tests
@@ -33,7 +33,8 @@ run_testcase = \
 	./$< -gforth > $@ 
 
 %.4thx: %_wrap.c
-	$(CC) -o $@ $<
+	echo "$(CC) $(INCLUDES) -o $@ $<"
+	$(CC) $(INCLUDES) -include stdlib.h -o $@ $<
 
 %.cpptest:
 	@exit 0
