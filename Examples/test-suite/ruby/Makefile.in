@@ -14,6 +14,7 @@ CPP_TEST_CASES = \
 	li_cstring \
 	li_factory \
 	li_std_functors \
+	li_std_list \
 	li_std_multimap \
 	li_std_pair_lang_object \
 	li_std_queue \
@@ -29,8 +30,12 @@ CPP_TEST_CASES = \
 #	ruby_li_std_speed
 #	stl_new
 
+CPP11_TEST_CASES = \
+	cpp11_hash_tables \
+
 C_TEST_CASES += \
-	li_cstring
+	li_cstring \
+	ruby_manual_proxy \
 
 include $(srcdir)/../common.mk
 

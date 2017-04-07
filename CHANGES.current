@@ -1,176 +1,57 @@
 Below are the changes for the current release.
 See the CHANGES file for changes in older releases.
 See the RELEASENOTES file for a summary of changes in each release.
+Issue # numbers mentioned below can be found on Github. For more details, add
+the issue number to the end of the URL: https://github.com/swig/swig/issues/
 
-Version 3.0.9 (in progress)
-===========================
+Version 3.0.13 (in progress)
+============================
 
-2016-05-07: wsfulton
-            Fix #611. Fix assertion handling defaultargs when using %extend for a template
-            class and the extended methods contain default arguments.
+2017-02-29: tamuratak
+            [Ruby] #917 - Add Enumerable module to all container class wrappers. It was missing
+            for std::list, std::multiset, std::unordered_multiset and std::unordered_map.
 
-2016-05-05: ejulian
-            [Python] Patch #617. Fix operator/ wrappers.
+2017-03-24: tamuratak 
+            [Ruby] Fix #939 - Wrapping std::vector<bool> fix due to incorrect null checks
+            on VALUE obj.
 
-2016-05-02: wsfulton
-            Fix #669. Don't issue warning about ignoring base classes when the derived class is
-            itself ignored.
-
-2016-04-18: ianlancetaylor
-	    [Go] Fix use of goout typemap when calling base method by
-	    forcing the "type" attribute to the value we need.
-
-2016-04-17: ianlancetaylor
-	    [Go] Fixes for Go 1.6: avoid returning Go pointers from
-	    directors that return string values; add a trailing 0 byte
-	    when treating Go string as C char*.
-
-2016-04-06: smarchetto
-            [Scilab] #552 Make Scilab runtime keep track of pointer types
-            Instead of a Scilab pointer which has no type, SWIG Scilab maps a
-            pointer to a structure tlist containing the pointer adress and its type.
-
-2016-04-02: ahnolds
-            [Python] Apply #598. Fix misleading error message when attempting to read a non-existent
-            attribute. The previous cryptic error message:
-              AttributeError: type object 'object' has no attribute '__getattr__'
-            is now replaced with one mentioning the attribute name, eg:
-              AttributeError: 'Foo' object has no attribute 'bar'
-
-2016-04-02: derkuci
-            [Python] Patch #610 to fix #607.
-            Fix single arguments when using python -builtin -O with %feature("compactdefaultargs")
-
-2016-03-31: wsfulton
-            Fixes #594. Fix assertion for some languages when wrapping a C++11 enum class that
-            is private in a class.
-
-            Also don't wrap private enums for a few languages that attempted to do so.
-
-2016-03-31: wsfulton
-            [Java] unsigned long long marshalling improvements when a negative number
-            is passed from Java to C. A cast to signed long long in the C layer will now
-            result in the expected value. No change for positive numbers passed to C.
-            Fixes #623.
-
-2016-03-22: alexwarg
-	    [Lua] #398 Fix lua __getitem + inheritance
-            The new handling of classes in Lua (not merging methods into the derived classes)
-            breaks for classes that provide a __getitem function. The __getitem function
-            prevents method calls to any method defined in a base class. This fix calls
-            __getitem only if the member is not found using recursive lookup.
-
-2016-03-18: ptomulik
-	    [Python] #563 Stop generating unnecessary _swigconstant helpers.
-
-2016-03-16: richardbeare
-	    [R] #636 Add extra std::vector numeric types
-
-2016-03-14: wsfulton
-	    [Java] Add std_array.i for C++11 std::array support.
-
-2016-03-12: wsfulton
-	    [Java, C#, D] Fix static const char member variables wrappers with %javaconst(1)
-            %csconst(1) or %dmanifestconst.
-            This fixes the case when an integer is used as the initializer, such as:
-
-              struct W { static const char w = 100; };
-
-	    Fix generated code parsing enum values using char escape sequences
-            when these values appear in the Java code (usually when using %javaconst(1))
+2017-03-17: wsfulton
+            [Go] Fix handling of typedef'd function pointers and typedef'd member function pointers
             such as:
 
-              enum X { x1 = '\n', x2 = '\1' };
+              typedef int (*FnPtr_td)(int, int);
+              int do_op(int x, int y, FnPtr_td op);
 
-            Similarly for static const member char variables such as:
+2017-03-16: wsfulton
+            Add support for member const function pointers such as:
 
-              struct Y { static const char y = '\n'; }
+              int fn(short (Funcs::* parm)(bool)) const;
 
-            Likewise for D and %dmanifestconstant. For C# and %csconst(1), char
-            values in C# are now hex escaped as C# doesn't support C octal escaping.
+            Also fix parsing of references/pointers and qualifiers to member
+            pointers such as:
 
-2016-03-11: wsfulton
-            [Java C#] Add support for treating C++ base classes as Java interfaces
-            instead of Java proxy classes. This enable some sort of support for
-            multiple inheritance. The implementation is in swiginterface.i and
-            provides additional macros (see Java.html for full documentation):
+              int fn(short (Funcs::* const parm)(bool));
+              int fn(short (Funcs::* & parm)(bool));
 
-              %interface(CTYPE)
-              %interface_impl(CTYPE)
-              %interface_custom("PROXY", "INTERFACE", CTYPE)
+2017-03-10: wsfulton
+            Extend C++11 alternate function syntax parsing to support const and noexcept, such as:
 
-2016-03-01: wsfulton
-            Add rstrip encoder for use in %rename. This is like the strip encoder but
-            strips the symbol's suffix instead of the prefix. The example below
-            will rename SomeThingCls to SomeThing and AnotherThingCls to AnotherThing:
+              auto sum1(int x, int y) const -> int { return x + y; }
+              auto sum2(int x, int y) noexcept -> int { return x + y; }
 
-              %rename("%(rstrip:[Cls])s") "";
+2017-02-27: assambar
+            [C++11] Extend parser to support throw specifier in combination
+            with override and/or final.
 
-              class SomeThingCls {};
-              struct AnotherThingCls {};
+2017-02-10: tamuratak
+            [Ruby] #883 - Add support for C++11 hash tables:
+              std::unordered_map
+              std::unordered_set
+              std::unordered_multimap
+              std::unordered_multiset
 
-2016-03-01: olly
-	    Fix isfinite() check to work with GCC6.  Fixes
-	    https://github.com/swig/swig/issues/615 reported by jplesnik.
-
-2016-02-17: olly
-	    [Python] Add missing keywords 'as' and 'with' to pythonkw.swg.
-
-2016-02-07: kwwette
-            [Octave] recognise various unary functions
-            * Use __float__() for numeric conversions, e.g. when calling double()
-            * Map various unary functions, e.g. abs() to __abs__(), see full list
-              in section 32.3.10 of manual; only available in Octave 3.8.0 or later
-
-2016-02-07: kwwette
-            [Octave] export function swig_octave_prereq() for testing Octave version
-
-2016-02-06: pjohangustavsson
-            [C#] Fix duplicate symbol problems when linking the source generated
-            from multiple SWIG modules into one shared library for the -namespace
-            option. The namespace is now mangled into the global PInvoke function
-            names.
-
-            *** POTENTIAL INCOMPATIBILITY ***
-
-2016-01-27: ahnolds
-            [Python] Added support for differentiating between Python Bytes
-            and Unicode objects using by defining SWIG_PYTHON_STRICT_BYTE_CHAR
-            and SWIG_PYTHON_STRICT_UNICODE_WCHAR.
-
-2016-01-27: steeve
-            [Go] Ensure structs are properly packed between gc and GCC/clang.
-
-2016-01-25: ahnolds
-            [Python] Support the full Python test suite in -classic mode
-            * Convert long/unsigned long/long long/unsigned long long to PyInt
-              rather than PyLong when possible. Certain python functions like
-              len() require a PyInt when operating on old-style classes.
-            * Add support for static methods in classic mode, including support
-              for pythonappend, pythonprepend, and docstrings.
-            * Removing the use of __swig_getmethods__ for static member methods
-              since they will always be found by the standard argument lookup
-            * Fix a bug where the wrong type of exception was caught when
-              checking for new-style class support
-
-2016-01-23: ahnolds
-            [Go] Enable support for the Go test-suite on OSX:
-            * The linker on OSX requires that all symbols (even weak symbols)
-              are defined at link time. Because the function _cgo_topofstack is
-              only defined starting in Go version 1.4, we explicitly mark it as
-              undefined for older versions of Go on OSX.
-            * Avoid writing empty swigargs structs, since empty structs are not
-              allowed in extern "C" blocks.
-
-2016-01-12: olly
-	    [Javascript] Look for "nodejs" as well as "node", as it's packaged
-	    as the former on Debian.
-
-2016-01-12: olly
-	    [Javascript] For v8 >= 4.3.0, use V8_MAJOR_VERSION.
-	    Fixes https://github.com/swig/swig/issues/561.
-
-2016-01-10: ahnolds
-            Improved size_t and ptrdiff_t typemaps to support large values
-            on platforms where sizeof(size_t) > sizeof(unsigned long) and
-            sizeof(ptrdiff_t) > sizeof(long).
+2017-02-08: jcsharp
+            [C#] #887 Improve std::vector<T> wrapper constructors -
+            Replace constructor taking ICollection with IEnumerable and also add IEnumerable<T>
+            constructor to avoid the boxing and unboxing overhead of the original constructor,
+            when the type parameter is a value type.

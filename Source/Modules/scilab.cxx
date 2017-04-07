@@ -326,6 +326,7 @@ public:
     bool isLastOverloaded = isOverloaded && !Getattr(node, "sym:nextSibling");
 
     if (!isOverloaded && !addSymbol(functionName, node)) {
+      DelWrapper(wrapper);
       return SWIG_ERROR;
     }
 
@@ -411,7 +412,7 @@ public:
     emit_return_variable(node, functionReturnType, wrapper);
 
     /* Return the function value if necessary */
-    String *functionReturnTypemap = Swig_typemap_lookup_out("out", node, "result", wrapper, functionActionCode);
+    String *functionReturnTypemap = Swig_typemap_lookup_out("out", node, Swig_cresult_name(), wrapper, functionActionCode);
     if (functionReturnTypemap) {
       // Result is actually the position of output value on stack
       if (Len(functionReturnTypemap) > 0) {
@@ -470,6 +471,13 @@ public:
       }
     }
 
+    /* See if there is any return cleanup code */
+    String *tm;
+    if ((tm = Swig_typemap_lookup("ret", node, Swig_cresult_name(), 0))) {
+      Replaceall(tm, "$source", Swig_cresult_name());
+      Printf(wrapper->code, "%s\n", tm);
+      Delete(tm);
+    }
 
     /* Close the function(ok) */
     Printv(wrapper->code, "return SWIG_OK;\n", NIL);
@@ -633,7 +641,10 @@ public:
 
       /* Add function to builder table */
       addFunctionToScilab(scilabSetFunctionName, setFunctionName);
+
+      DelWrapper(setFunctionWrapper);
     }
+    DelWrapper(getFunctionWrapper);
 
     return SWIG_OK;
   }
@@ -660,7 +671,7 @@ public:
       if (isConstant || isEnum) {
 	if (isEnum) {
 	  Setattr(node, "type", "double");
-	  constantValue = Getattr(node, "enumvalue");
+	  constantValue = Getattr(node, "value");
 	}
 
 	constantTypemap = Swig_typemap_lookup("scilabconstcode", node, nodeName, 0);
@@ -1026,7 +1037,7 @@ public:
       Printf(gatewayHeaderV5, ",\n");
     Printf(gatewayHeaderV5, " {(Myinterfun)sci_gateway, (GT)%s, (char *)\"%s\"}", wrapperFunctionName, scilabFunctionName);
 
-    Printf(gatewayHeaderV6, "if (wcscmp(pwstFuncName, L\"%s\") == 0) { addCFunction((wchar_t *)L\"%s\", &%s, (wchar_t *)MODULE_NAME); }\n", scilabFunctionName, scilabFunctionName, wrapperFunctionName);
+    Printf(gatewayHeaderV6, "if (wcscmp(pwstFuncName, L\"%s\") == 0) { addCStackFunction((wchar_t *)L\"%s\", &%s, (wchar_t *)MODULE_NAME); }\n", scilabFunctionName, scilabFunctionName, wrapperFunctionName);
   }
 
   /* -----------------------------------------------------------------------
